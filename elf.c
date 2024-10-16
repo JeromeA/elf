@@ -1,10 +1,11 @@
+// elf.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "decode.h"
-#include "encode.h"
+#include "decoder.h"
+#include "encoder.h"
+#include "elf.h"
 
-/* Frees the allocated memory in ElfBinary */
 void free_elf_binary(ElfBinary *binary) {
     if (binary->phdrs != NULL) {
         free(binary->phdrs);
@@ -12,7 +13,6 @@ void free_elf_binary(ElfBinary *binary) {
     }
 }
 
-/* Main function handling command-line arguments */
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         fprintf(stderr, "Usage: %s -e|-d filename\n", argv[0]);

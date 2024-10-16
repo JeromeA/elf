@@ -1,32 +1,25 @@
-#include "encode.h"
+// lisp_parser.c
+#include "lisp_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-/* Function prototypes for internal use */
-static FILE *open_file_for_reading(const char *filename);
+static FILE *open_lisp_file(const char *filename);
 static void parse_lisp_representation(FILE *fp, ElfBinary *binary);
 static void parse_elf_header(FILE *fp, ElfBinary *binary);
 static void parse_program_headers(FILE *fp, ElfBinary *binary);
-static void write_elf_binary(const ElfBinary *binary);
+static Elf64_Half get_e_type_value(const char *str);
+static Elf64_Half get_e_machine_value(const char *str);
+static Elf64_Word get_p_type_value(const char *str);
 
-/* Main function to encode an ELF binary from Lisp representation */
-void encode_elf(const char *filename) {
-    FILE *fp = open_file_for_reading(filename);
-
-    ElfBinary binary;
-    memset(&binary, 0, sizeof(ElfBinary));
-
-    parse_lisp_representation(fp, &binary);
+void parse_lisp_file(const char *filename, ElfBinary *binary) {
+    FILE *fp = open_lisp_file(filename);
+    parse_lisp_representation(fp, binary);
     fclose(fp);
-
-    write_elf_binary(&binary);
-    free_elf_binary(&binary);
 }
 
-/* Opens a file for reading */
-static FILE *open_file_for_reading(const char *filename) {
+static FILE *open_lisp_file(const char *filename) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         perror("fopen");
@@ -35,7 +28,6 @@ static FILE *open_file_for_reading(const char *filename) {
     return fp;
 }
 
-/* Parses the entire Lisp representation */
 static void parse_lisp_representation(FILE *fp, ElfBinary *binary) {
     char line[256];
     while (fgets(line, sizeof(line), fp)) {
@@ -46,6 +38,7 @@ static void parse_lisp_representation(FILE *fp, ElfBinary *binary) {
         }
     }
 }
+
 
 /* Function to map string to e_type value */
 static Elf64_Half get_e_type_value(const char *str) {
@@ -227,10 +220,4 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
     }
 
     binary->ehdr.e_phnum = phdr_count;
-}
-
-/* Writes the ELF binary to stdout */
-static void write_elf_binary(const ElfBinary *binary) {
-    fwrite(&binary->ehdr, sizeof(Elf64_Ehdr), 1, stdout);
-    fwrite(binary->phdrs, sizeof(Elf64_Phdr), binary->ehdr.e_phnum, stdout);
 }
