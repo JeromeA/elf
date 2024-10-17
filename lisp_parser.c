@@ -4,20 +4,6 @@
 #include <string.h>
 #include <ctype.h>
 
-static FILE *open_lisp_file(const char *filename);
-static void parse_lisp_representation(FILE *fp, ElfBinary *binary);
-static void parse_elf_header(FILE *fp, ElfBinary *binary);
-static void parse_program_headers(FILE *fp, ElfBinary *binary);
-static Elf64_Half get_e_type_value(const char *str);
-static Elf64_Half get_e_machine_value(const char *str);
-static Elf64_Word get_p_type_value(const char *str);
-
-void parse_lisp_file(const char *filename, ElfBinary *binary) {
-    FILE *fp = open_lisp_file(filename);
-    parse_lisp_representation(fp, binary);
-    fclose(fp);
-}
-
 static FILE *open_lisp_file(const char *filename) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
@@ -26,18 +12,6 @@ static FILE *open_lisp_file(const char *filename) {
     }
     return fp;
 }
-
-static void parse_lisp_representation(FILE *fp, ElfBinary *binary) {
-    char line[256];
-    while (fgets(line, sizeof(line), fp)) {
-        if (strstr(line, "(elf_header")) {
-            parse_elf_header(fp, binary);
-        } else if (strstr(line, "(program_headers")) {
-            parse_program_headers(fp, binary);
-        }
-    }
-}
-
 
 /* Function to map string to e_type value */
 static Elf64_Half get_e_type_value(const char *str) {
@@ -243,3 +217,21 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
 
     binary->ehdr.e_phnum = phdr_count;
 }
+
+static void parse_lisp_representation(FILE *fp, ElfBinary *binary) {
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        if (strstr(line, "(elf_header")) {
+            parse_elf_header(fp, binary);
+        } else if (strstr(line, "(program_headers")) {
+            parse_program_headers(fp, binary);
+        }
+    }
+}
+
+void parse_lisp_file(const char *filename, ElfBinary *binary) {
+    FILE *fp = open_lisp_file(filename);
+    parse_lisp_representation(fp, binary);
+    fclose(fp);
+}
+

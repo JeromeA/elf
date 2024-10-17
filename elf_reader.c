@@ -7,26 +7,6 @@
 #include <sys/stat.h>
 #include <string.h>
 
-static int open_elf_file(const char *filename);
-static void *map_elf_file(int fd, size_t *size);
-static void verify_elf_magic(const Elf64_Ehdr *ehdr);
-static Elf64_Phdr *read_program_headers(const Elf64_Ehdr *ehdr, const void *map);
-
-void read_elf_binary(const char *filename, ElfBinary *binary) {
-    int fd = open_elf_file(filename);
-    size_t filesize;
-    void *map = map_elf_file(fd, &filesize);
-    close(fd);
-
-    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)map;
-    verify_elf_magic(ehdr);
-
-    memcpy(&binary->ehdr, ehdr, sizeof(Elf64_Ehdr));
-    binary->phdrs = read_program_headers(ehdr, map);
-
-    munmap(map, filesize);
-}
-
 static int open_elf_file(const char *filename) {
     int fd = open(filename, O_RDONLY);
     if (fd < 0) {
@@ -69,3 +49,19 @@ static Elf64_Phdr *read_program_headers(const Elf64_Ehdr *ehdr, const void *map)
     memcpy(phdrs, (const char *)map + ehdr->e_phoff, sizeof(Elf64_Phdr) * ehdr->e_phnum);
     return phdrs;
 }
+
+void read_elf_binary(const char *filename, ElfBinary *binary) {
+    int fd = open_elf_file(filename);
+    size_t filesize;
+    void *map = map_elf_file(fd, &filesize);
+    close(fd);
+
+    Elf64_Ehdr *ehdr = (Elf64_Ehdr *)map;
+    verify_elf_magic(ehdr);
+
+    memcpy(&binary->ehdr, ehdr, sizeof(Elf64_Ehdr));
+    binary->phdrs = read_program_headers(ehdr, map);
+
+    munmap(map, filesize);
+}
+

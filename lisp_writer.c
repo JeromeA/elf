@@ -2,41 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static void output_elf_header_lisp(const Elf64_Ehdr *ehdr);
-static void output_program_headers_lisp(const Elf64_Ehdr *ehdr, const Elf64_Phdr *phdrs);
 static const char *get_e_type_string(Elf64_Half e_type);
 static const char *get_e_machine_string(Elf64_Half e_machine);
 static const char *get_p_type_string(Elf64_Word p_type);
-
-void output_lisp_representation(const ElfBinary *binary) {
-    printf("(elf_binary\n");
-    output_elf_header_lisp(&binary->ehdr);
-    output_program_headers_lisp(&binary->ehdr, binary->phdrs);
-    printf(")\n");
-}
-
-static void output_elf_header_lisp(const Elf64_Ehdr *ehdr) {
-    printf("  (elf_header\n");
-    printf("    (e_ident 0x");
-    for (int i = 0; i < EI_NIDENT; i++) {
-        printf("%02x", ehdr->e_ident[i]);
-    }
-    printf(")\n");
-    printf("    (e_type %s)\n", get_e_type_string(ehdr->e_type));
-    printf("    (e_machine %s)\n", get_e_machine_string(ehdr->e_machine));
-    printf("    (e_version %u)\n", ehdr->e_version);
-    printf("    (e_entry 0x%lx)\n", ehdr->e_entry);
-    printf("    (e_phoff %lu)\n", ehdr->e_phoff);
-    printf("    (e_shoff %lu)\n", ehdr->e_shoff);
-    printf("    (e_flags %u)\n", ehdr->e_flags);
-    printf("    (e_ehsize %u)\n", ehdr->e_ehsize);
-    printf("    (e_phentsize %u)\n", ehdr->e_phentsize);
-    printf("    (e_phnum %u)\n", ehdr->e_phnum);
-    printf("    (e_shentsize %u)\n", ehdr->e_shentsize);
-    printf("    (e_shnum %u)\n", ehdr->e_shnum);
-    printf("    (e_shstrndx %u)\n", ehdr->e_shstrndx);
-    printf("  )\n");
-}
 
 static const char *get_p_flags_string(Elf64_Word p_flags) {
     static char flags_str[32];
@@ -125,3 +93,34 @@ static const char *get_p_type_string(Elf64_Word p_type) {
         }
     }
 }
+
+static void output_elf_header_lisp(const Elf64_Ehdr *ehdr) {
+    printf("  (elf_header\n");
+    printf("    (e_ident 0x");
+    for (int i = 0; i < EI_NIDENT; i++) {
+        printf("%02x", ehdr->e_ident[i]);
+    }
+    printf(")\n");
+    printf("    (e_type %s)\n", get_e_type_string(ehdr->e_type));
+    printf("    (e_machine %s)\n", get_e_machine_string(ehdr->e_machine));
+    printf("    (e_version %u)\n", ehdr->e_version);
+    printf("    (e_entry 0x%lx)\n", ehdr->e_entry);
+    printf("    (e_phoff %lu)\n", ehdr->e_phoff);
+    printf("    (e_shoff %lu)\n", ehdr->e_shoff);
+    printf("    (e_flags %u)\n", ehdr->e_flags);
+    printf("    (e_ehsize %u)\n", ehdr->e_ehsize);
+    printf("    (e_phentsize %u)\n", ehdr->e_phentsize);
+    printf("    (e_phnum %u)\n", ehdr->e_phnum);
+    printf("    (e_shentsize %u)\n", ehdr->e_shentsize);
+    printf("    (e_shnum %u)\n", ehdr->e_shnum);
+    printf("    (e_shstrndx %u)\n", ehdr->e_shstrndx);
+    printf("  )\n");
+}
+
+void output_lisp_representation(const ElfBinary *binary) {
+    printf("(elf_binary\n");
+    output_elf_header_lisp(&binary->ehdr);
+    output_program_headers_lisp(&binary->ehdr, binary->phdrs);
+    printf(")\n");
+}
+
