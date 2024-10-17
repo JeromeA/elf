@@ -3,6 +3,6 @@
 
 #include "elf.h"
 
-void output_lisp_representation(const ElfBinary *binary);
+void output_lisp_representation(const ElfBinary *binary, const char *output_filename);
 
 #endif /* LISP_WRITER_H */

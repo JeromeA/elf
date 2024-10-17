@@ -4,12 +4,12 @@
 #include "elf.h"
 #include <string.h>
 
-void encode_elf(const char *filename) {
+void encode_elf(const char *input_filename, const char *output_filename) {
     ElfBinary binary;
     memset(&binary, 0, sizeof(ElfBinary));
 
-    parse_lisp_file(filename, &binary);
-    write_elf_binary(&binary);
+    parse_lisp_file(input_filename, &binary);
+    write_elf_binary(&binary, output_filename);
 
     free_elf_binary(&binary);
 }
