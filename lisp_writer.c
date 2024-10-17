@@ -24,6 +24,33 @@ static const char *get_p_flags_string(Elf64_Word p_flags) {
     return flags_str;
 }
 
+static const char *get_p_type_string(Elf64_Word p_type) {
+    switch (p_type) {
+        case PT_NULL: return "PT_NULL";
+        case PT_LOAD: return "PT_LOAD";
+        case PT_DYNAMIC: return "PT_DYNAMIC";
+        case PT_INTERP: return "PT_INTERP";
+        case PT_NOTE: return "PT_NOTE";
+        case PT_SHLIB: return "PT_SHLIB";
+        case PT_PHDR: return "PT_PHDR";
+        case PT_TLS: return "PT_TLS";
+        // GNU-specific segment types
+        case PT_GNU_EH_FRAME: return "PT_GNU_EH_FRAME";
+        case PT_GNU_STACK: return "PT_GNU_STACK";
+        case PT_GNU_RELRO: return "PT_GNU_RELRO";
+        case PT_GNU_PROPERTY: return "PT_GNU_PROPERTY";
+        case PT_GNU_SFRAME: return "PT_GNU_SFRAME";
+        // Sun-specific segment types
+        case PT_SUNWBSS: return "PT_SUNWBSS";
+        case PT_SUNWSTACK: return "PT_SUNWSTACK";
+        default: {
+            static char unknown_str[32];
+            snprintf(unknown_str, sizeof(unknown_str), "PT_UNKNOWN(%u)", p_type);
+            return unknown_str;
+        }
+    }
+}
+
 static void output_program_headers_lisp(const Elf64_Ehdr *ehdr, const Elf64_Phdr *phdrs) {
     printf("  (program_headers\n");
     for (int i = 0; i < ehdr->e_phnum; i++) {
@@ -66,33 +93,6 @@ static const char *get_e_machine_string(Elf64_Half e_machine) {
         default: {
             static char unknown_str[32];
             snprintf(unknown_str, sizeof(unknown_str), "EM_UNKNOWN(%u)", e_machine);
-            return unknown_str;
-        }
-    }
-}
-
-static const char *get_p_type_string(Elf64_Word p_type) {
-    switch (p_type) {
-        case PT_NULL: return "PT_NULL";
-        case PT_LOAD: return "PT_LOAD";
-        case PT_DYNAMIC: return "PT_DYNAMIC";
-        case PT_INTERP: return "PT_INTERP";
-        case PT_NOTE: return "PT_NOTE";
-        case PT_SHLIB: return "PT_SHLIB";
-        case PT_PHDR: return "PT_PHDR";
-        case PT_TLS: return "PT_TLS";
-        // GNU-specific segment types
-        case PT_GNU_EH_FRAME: return "PT_GNU_EH_FRAME";
-        case PT_GNU_STACK: return "PT_GNU_STACK";
-        case PT_GNU_RELRO: return "PT_GNU_RELRO";
-        case PT_GNU_PROPERTY: return "PT_GNU_PROPERTY";
-        case PT_GNU_SFRAME: return "PT_GNU_SFRAME";
-        // Sun-specific segment types
-        case PT_SUNWBSS: return "PT_SUNWBSS";
-        case PT_SUNWSTACK: return "PT_SUNWSTACK";
-        default: {
-            static char unknown_str[32];
-            snprintf(unknown_str, sizeof(unknown_str), "PT_UNKNOWN(%u)", p_type);
             return unknown_str;
         }
     }
