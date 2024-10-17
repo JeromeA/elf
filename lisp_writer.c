@@ -1,4 +1,3 @@
-// lisp_writer.c
 #include "lisp_writer.h"
 #include <stdio.h>
 #include <string.h>
@@ -39,13 +38,35 @@ static void output_elf_header_lisp(const Elf64_Ehdr *ehdr) {
     printf("  )\n");
 }
 
+static const char *get_p_flags_string(Elf64_Word p_flags) {
+    static char flags_str[32];
+    flags_str[0] = '\0';
+
+    if (p_flags & PF_R) strcat(flags_str, "PF_R|");
+    if (p_flags & PF_W) strcat(flags_str, "PF_W|");
+    if (p_flags & PF_X) strcat(flags_str, "PF_X|");
+
+    // Remove trailing '|'
+    size_t len = strlen(flags_str);
+    if (len > 0 && flags_str[len - 1] == '|') {
+        flags_str[len - 1] = '\0';
+    }
+
+    // If no flags are set, indicate none
+    if (flags_str[0] == '\0') {
+        strcpy(flags_str, "0");
+    }
+
+    return flags_str;
+}
+
 static void output_program_headers_lisp(const Elf64_Ehdr *ehdr, const Elf64_Phdr *phdrs) {
     printf("  (program_headers\n");
     for (int i = 0; i < ehdr->e_phnum; i++) {
         const Elf64_Phdr *phdr = &phdrs[i];
         printf("    (program_header\n");
         printf("      (p_type %s)\n", get_p_type_string(phdr->p_type));
-        printf("      (p_flags 0x%x)\n", phdr->p_flags);
+        printf("      (p_flags %s)\n", get_p_flags_string(phdr->p_flags));
         printf("      (p_offset %lu)\n", phdr->p_offset);
         printf("      (p_vaddr 0x%lx)\n", phdr->p_vaddr);
         printf("      (p_paddr 0x%lx)\n", phdr->p_paddr);

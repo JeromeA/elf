@@ -1,4 +1,3 @@
-// lisp_parser.c
 #include "lisp_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -144,6 +143,34 @@ static Elf64_Word get_p_type_value(const char *str) {
     exit(EXIT_FAILURE);
 }
 
+static Elf64_Word get_p_flags_value(const char *str) {
+    Elf64_Word flags = 0;
+
+    // Split the input string by '|'
+    char temp_str[32];
+    strncpy(temp_str, str, sizeof(temp_str) - 1);
+    temp_str[sizeof(temp_str) - 1] = '\0';
+
+    char *token = strtok(temp_str, "|");
+    while (token != NULL) {
+        if (strcmp(token, "PF_R") == 0)
+            flags |= PF_R;
+        else if (strcmp(token, "PF_W") == 0)
+            flags |= PF_W;
+        else if (strcmp(token, "PF_X") == 0)
+            flags |= PF_X;
+        else if (strcmp(token, "0") == 0)
+            flags |= 0;
+        else {
+            fprintf(stderr, "Unknown p_flags value: %s\n", token);
+            exit(EXIT_FAILURE);
+        }
+        token = strtok(NULL, "|");
+    }
+
+    return flags;
+}
+
 /* Parses the program headers from the Lisp representation with constants */
 static void parse_program_headers(FILE *fp, ElfBinary *binary) {
     char line[256];
@@ -193,12 +220,7 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
                     if (strcmp(name, "type") == 0) {
                         current_phdr->p_type = get_p_type_value(value_str);
                     } else if (strcmp(name, "flags") == 0) {
-                        // Handle hex prefix for flags
-                        if (strncmp(value_str, "0x", 2) == 0) {
-                            current_phdr->p_flags = (Elf64_Word)strtoul(value_str, NULL, 16);
-                        } else {
-                            current_phdr->p_flags = (Elf64_Word)atoi(value_str);
-                        }
+                        current_phdr->p_flags = get_p_flags_value(value_str);
                     } else if (strcmp(name, "offset") == 0) {
                         current_phdr->p_offset = (Elf64_Off)atol(value_str);
                     } else if (strcmp(name, "vaddr") == 0) {
