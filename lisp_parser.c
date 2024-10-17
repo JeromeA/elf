@@ -109,6 +109,13 @@ static Elf64_Word get_p_type_value(const char *str) {
     if (strcmp(str, "PT_SHLIB") == 0) return PT_SHLIB;
     if (strcmp(str, "PT_PHDR") == 0) return PT_PHDR;
     if (strcmp(str, "PT_TLS") == 0) return PT_TLS;
+    if (strcmp(str, "PT_GNU_EH_FRAME") == 0) return PT_GNU_EH_FRAME;
+    if (strcmp(str, "PT_GNU_STACK") == 0) return PT_GNU_STACK;
+    if (strcmp(str, "PT_GNU_RELRO") == 0) return PT_GNU_RELRO;
+    if (strcmp(str, "PT_GNU_PROPERTY") == 0) return PT_GNU_PROPERTY;
+    if (strcmp(str, "PT_GNU_SFRAME") == 0) return PT_GNU_SFRAME;
+    if (strcmp(str, "PT_SUNWBSS") == 0) return PT_SUNWBSS;
+    if (strcmp(str, "PT_SUNWSTACK") == 0) return PT_SUNWSTACK;
     // Add other segment types as needed
     if (strncmp(str, "PT_UNKNOWN(", 11) == 0) {
         return (Elf64_Word)atoi(str + 11);
