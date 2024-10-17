@@ -1,4 +1,3 @@
-// decoder.c
 #include "decoder.h"
 #include "elf_reader.h"
 #include "lisp_writer.h"

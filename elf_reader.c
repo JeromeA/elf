@@ -1,4 +1,3 @@
-// elf_reader.c
 #include "elf_reader.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,4 +1,3 @@
-// encoder.h
 #ifndef ENCODER_H
 #define ENCODER_H
 

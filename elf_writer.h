@@ -1,4 +1,3 @@
-// elf_writer.h
 #ifndef ELF_WRITER_H
 #define ELF_WRITER_H
 

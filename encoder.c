@@ -1,4 +1,3 @@
-// encoder.c
 #include "encoder.h"
 #include "lisp_parser.h"
 #include "elf_writer.h"

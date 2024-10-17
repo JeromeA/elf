@@ -1,4 +1,3 @@
-// elf_reader.h
 #ifndef ELF_READER_H
 #define ELF_READER_H
 

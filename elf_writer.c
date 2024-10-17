@@ -1,4 +1,3 @@
-// elf_writer.c
 #include "elf_writer.h"
 #include <stdio.h>
 
