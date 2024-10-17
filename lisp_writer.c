@@ -2,10 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static const char *get_e_type_string(Elf64_Half e_type);
-static const char *get_e_machine_string(Elf64_Half e_machine);
-static const char *get_p_type_string(Elf64_Word p_type);
-
 static const char *get_p_flags_string(Elf64_Word p_flags) {
     static char flags_str[32];
     flags_str[0] = '\0';
@@ -85,7 +81,15 @@ static const char *get_p_type_string(Elf64_Word p_type) {
         case PT_SHLIB: return "PT_SHLIB";
         case PT_PHDR: return "PT_PHDR";
         case PT_TLS: return "PT_TLS";
-        // Add other segment types as needed
+        // GNU-specific segment types
+        case PT_GNU_EH_FRAME: return "PT_GNU_EH_FRAME";
+        case PT_GNU_STACK: return "PT_GNU_STACK";
+        case PT_GNU_RELRO: return "PT_GNU_RELRO";
+        case PT_GNU_PROPERTY: return "PT_GNU_PROPERTY";
+        case PT_GNU_SFRAME: return "PT_GNU_SFRAME";
+        // Sun-specific segment types
+        case PT_SUNWBSS: return "PT_SUNWBSS";
+        case PT_SUNWSTACK: return "PT_SUNWSTACK";
         default: {
             static char unknown_str[32];
             snprintf(unknown_str, sizeof(unknown_str), "PT_UNKNOWN(%u)", p_type);
