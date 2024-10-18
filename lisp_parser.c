@@ -43,21 +43,42 @@ static Elf64_Half get_e_machine_value(const char *str) {
 
 /* Helper function to read, trim a line, and determine if parsing should continue */
 static bool get_line(FILE *fp, char **input, char **line, size_t *len) {
-    if (getline(input, len, fp) == -1) {
-        return false; // EOF or read error
-    }
+    while (true) {
+        if (getline(input, len, fp) == -1) {
+            return false; // EOF or read error
+        }
 
-    *line = *input;
-    while (isspace((unsigned char)**line)) {
-        (*line)++;
-    }
+        // Remove comments: trim everything after a semicolon ';'
+        char *comment_pos = strchr(*input, ';');
+        if (comment_pos) {
+            *comment_pos = '\0';
+        }
 
-    // Stop if the line is a lone closing parenthesis
-    if (strcmp(*line, ")\n") == 0 || strcmp(*line, ")") == 0) {
-        return false;
-    }
+        // Trim leading whitespace
+        *line = *input;
+        while (isspace((unsigned char)**line)) {
+            (*line)++;
+        }
 
-    return true; // Continue parsing
+        // Trim trailing whitespace
+        char *end = *line + strlen(*line) - 1;
+        while (end >= *line && isspace((unsigned char)*end)) {
+            *end = '\0';
+            end--;
+        }
+
+        // Skip empty lines
+        if (**line == '\0') {
+            continue; // Read next line
+        }
+
+        // Stop if the line is a lone closing parenthesis
+        if (strcmp(*line, ")") == 0) {
+            return false;
+        }
+
+        return true; // Continue parsing
+    }
 }
 
 /* Parses the ELF header from the Lisp representation with constants */
