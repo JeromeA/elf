@@ -3,6 +3,6 @@
 
 #include "elf.h"
 
-void write_elf_binary(const ElfBinary *binary, const char *output_filename);
+void write_elf_binary(ElfBinary *binary, const char *output_filename);
 
 #endif /* ELF_WRITER_H */

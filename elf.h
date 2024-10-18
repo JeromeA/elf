@@ -7,6 +7,10 @@
 typedef struct {
     Elf64_Ehdr ehdr;
     Elf64_Phdr *phdrs;
+    Elf64_Shdr *shdrs;
+    char *shstrtab;
+    char **section_names;
+    unsigned char **section_data;
 } ElfBinary;
 
 /* Function to free allocated memory in ElfBinary */

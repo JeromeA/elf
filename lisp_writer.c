@@ -122,6 +122,105 @@ static void output_elf_header_lisp(const Elf64_Ehdr *ehdr, FILE *fp) {
     fprintf(fp, "  )\n");
 }
 
+static const char *get_sh_type_string(Elf64_Word sh_type) {
+    switch (sh_type) {
+        case SHT_NULL:            return "SHT_NULL";
+        case SHT_PROGBITS:        return "SHT_PROGBITS";
+        case SHT_SYMTAB:          return "SHT_SYMTAB";
+        case SHT_STRTAB:          return "SHT_STRTAB";
+        case SHT_RELA:            return "SHT_RELA";
+        case SHT_HASH:            return "SHT_HASH";
+        case SHT_DYNAMIC:         return "SHT_DYNAMIC";
+        case SHT_NOTE:            return "SHT_NOTE";
+        case SHT_NOBITS:          return "SHT_NOBITS";
+        case SHT_REL:             return "SHT_REL";
+        case SHT_SHLIB:           return "SHT_SHLIB";
+        case SHT_DYNSYM:          return "SHT_DYNSYM";
+        case SHT_INIT_ARRAY:      return "SHT_INIT_ARRAY";
+        case SHT_FINI_ARRAY:      return "SHT_FINI_ARRAY";
+        case SHT_PREINIT_ARRAY:   return "SHT_PREINIT_ARRAY";
+        case SHT_GROUP:           return "SHT_GROUP";
+        case SHT_SYMTAB_SHNDX:    return "SHT_SYMTAB_SHNDX";
+        case SHT_RELR:            return "SHT_RELR";
+        case SHT_NUM:             return "SHT_NUM";
+        case SHT_LOOS:            return "SHT_LOOS";
+        case SHT_GNU_ATTRIBUTES:  return "SHT_GNU_ATTRIBUTES";
+        case SHT_GNU_HASH:        return "SHT_GNU_HASH";
+        case SHT_GNU_LIBLIST:     return "SHT_GNU_LIBLIST";
+        case SHT_CHECKSUM:        return "SHT_CHECKSUM";
+        case SHT_SUNW_move:       return "SHT_SUNW_move";
+        case SHT_SUNW_COMDAT:     return "SHT_SUNW_COMDAT";
+        case SHT_SUNW_syminfo:    return "SHT_SUNW_syminfo";
+        case SHT_GNU_verdef:      return "SHT_GNU_verdef";
+        case SHT_GNU_verneed:     return "SHT_GNU_verneed";
+        case SHT_GNU_versym:      return "SHT_GNU_versym";
+        default: {
+            static char unknown_str[32];
+            snprintf(unknown_str, sizeof(unknown_str), "SHT_UNKNOWN(0x%x)", sh_type);
+            return unknown_str;
+        }
+    }
+}
+
+static const char *get_sh_flags_string(Elf64_Xword sh_flags) {
+    static char flags_str[64];
+    flags_str[0] = '\0';
+
+    if (sh_flags & SHF_WRITE) { strcat(flags_str, "SHF_WRITE | "); }
+    if (sh_flags & SHF_ALLOC) { strcat(flags_str, "SHF_ALLOC | "); }
+    if (sh_flags & SHF_EXECINSTR) { strcat(flags_str, "SHF_EXECINSTR | "); }
+    if (sh_flags & SHF_MERGE) { strcat(flags_str, "SHF_MERGE | "); }
+    if (sh_flags & SHF_STRINGS) { strcat(flags_str, "SHF_STRINGS | "); }
+    if (sh_flags & SHF_INFO_LINK) { strcat(flags_str, "SHF_INFO_LINK | "); }
+    if (sh_flags & SHF_LINK_ORDER) { strcat(flags_str, "SHF_LINK_ORDER | "); }
+    if (sh_flags & SHF_OS_NONCONFORMING) { strcat(flags_str, "SHF_OS_NONCONFORMING | "); }
+    if (sh_flags & SHF_GROUP) { strcat(flags_str, "SHF_GROUP | "); }
+    if (sh_flags & SHF_TLS) { strcat(flags_str, "SHF_TLS | "); }
+    if (sh_flags & SHF_COMPRESSED) { strcat(flags_str, "SHF_COMPRESSED | "); }
+    if (sh_flags & SHF_GNU_RETAIN) { strcat(flags_str, "SHF_GNU_RETAIN | "); }
+
+    // Remove trailing ' | '
+    size_t len = strlen(flags_str);
+    if (len > 0) {
+        flags_str[len - 3] = '\0';
+    } else {
+        strcpy(flags_str, "0");
+    }
+
+    return flags_str;
+}
+
+static void output_section_headers_lisp(const Elf64_Ehdr *ehdr, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, FILE *fp) {
+    fprintf(fp, "  (section_headers\n");
+    for (int i = 0; i < ehdr->e_shnum; i++) {
+        const Elf64_Shdr *shdr = &shdrs[i];
+        const char *section_name = section_names[i];
+        fprintf(fp, "    (section_header\n");
+        fprintf(fp, "      (sh_name %u)\n", shdr->sh_name);
+        fprintf(fp, "      (sh_name_str \"%s\")\n", section_name); // Output section name for readability
+        fprintf(fp, "      (sh_type %s)\n", get_sh_type_string(shdr->sh_type));
+        fprintf(fp, "      (sh_flags %s)\n", get_sh_flags_string(shdr->sh_flags));
+        fprintf(fp, "      (sh_addr 0x%lx)\n", shdr->sh_addr);
+        fprintf(fp, "      (sh_offset %lu)\n", shdr->sh_offset);
+        fprintf(fp, "      (sh_size %lu)\n", shdr->sh_size);
+        fprintf(fp, "      (sh_link %u)\n", shdr->sh_link);
+        fprintf(fp, "      (sh_info %u)\n", shdr->sh_info);
+        fprintf(fp, "      (sh_addralign %lu)\n", shdr->sh_addralign);
+        fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
+        
+        // Output section data as hex dump
+        if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
+            fprintf(fp, "      (sh_data #hex\"");
+            for (size_t j = 0; j < shdr->sh_size; j++) {
+                fprintf(fp, "%02x", section_data[i][j]);
+            }
+            fprintf(fp, "\")\n");
+        }
+        fprintf(fp, "    )\n");
+    }
+    fprintf(fp, "  )\n");
+}
+
 void output_lisp_representation(const ElfBinary *binary, const char *output_filename) {
     FILE *fp = fopen(output_filename, "w");
     if (!fp) {
@@ -132,6 +231,8 @@ void output_lisp_representation(const ElfBinary *binary, const char *output_file
     fprintf(fp, "(elf_binary\n");
     output_elf_header_lisp(&binary->ehdr, fp);
     output_program_headers_lisp(&binary->ehdr, binary->phdrs, fp);
+    output_section_headers_lisp(&binary->ehdr, binary->shdrs, binary->section_names, binary->section_data, fp);
+
     fprintf(fp, ")\n");
 
     fclose(fp);

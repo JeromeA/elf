@@ -225,13 +225,317 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
     binary->ehdr.e_phnum = phdr_count;
 }
 
+static Elf64_Word get_sh_type_value(const char *str) {
+    if (strcmp(str, "SHT_NULL") == 0)            return SHT_NULL;
+    if (strcmp(str, "SHT_PROGBITS") == 0)        return SHT_PROGBITS;
+    if (strcmp(str, "SHT_SYMTAB") == 0)          return SHT_SYMTAB;
+    if (strcmp(str, "SHT_STRTAB") == 0)          return SHT_STRTAB;
+    if (strcmp(str, "SHT_RELA") == 0)            return SHT_RELA;
+    if (strcmp(str, "SHT_HASH") == 0)            return SHT_HASH;
+    if (strcmp(str, "SHT_DYNAMIC") == 0)         return SHT_DYNAMIC;
+    if (strcmp(str, "SHT_NOTE") == 0)            return SHT_NOTE;
+    if (strcmp(str, "SHT_NOBITS") == 0)          return SHT_NOBITS;
+    if (strcmp(str, "SHT_REL") == 0)             return SHT_REL;
+    if (strcmp(str, "SHT_SHLIB") == 0)           return SHT_SHLIB;
+    if (strcmp(str, "SHT_DYNSYM") == 0)          return SHT_DYNSYM;
+    if (strcmp(str, "SHT_INIT_ARRAY") == 0)      return SHT_INIT_ARRAY;
+    if (strcmp(str, "SHT_FINI_ARRAY") == 0)      return SHT_FINI_ARRAY;
+    if (strcmp(str, "SHT_PREINIT_ARRAY") == 0)   return SHT_PREINIT_ARRAY;
+    if (strcmp(str, "SHT_GROUP") == 0)           return SHT_GROUP;
+    if (strcmp(str, "SHT_SYMTAB_SHNDX") == 0)    return SHT_SYMTAB_SHNDX;
+    if (strcmp(str, "SHT_RELR") == 0)            return SHT_RELR;
+    if (strcmp(str, "SHT_NUM") == 0)             return SHT_NUM;
+    if (strcmp(str, "SHT_LOOS") == 0)            return SHT_LOOS;
+    if (strcmp(str, "SHT_GNU_ATTRIBUTES") == 0)  return SHT_GNU_ATTRIBUTES;
+    if (strcmp(str, "SHT_GNU_HASH") == 0)        return SHT_GNU_HASH;
+    if (strcmp(str, "SHT_GNU_LIBLIST") == 0)     return SHT_GNU_LIBLIST;
+    if (strcmp(str, "SHT_CHECKSUM") == 0)        return SHT_CHECKSUM;
+    if (strcmp(str, "SHT_SUNW_move") == 0)       return SHT_SUNW_move;
+    if (strcmp(str, "SHT_SUNW_COMDAT") == 0)     return SHT_SUNW_COMDAT;
+    if (strcmp(str, "SHT_SUNW_syminfo") == 0)    return SHT_SUNW_syminfo;
+    if (strcmp(str, "SHT_GNU_verdef") == 0)      return SHT_GNU_verdef;
+    if (strcmp(str, "SHT_GNU_verneed") == 0)     return SHT_GNU_verneed;
+    if (strcmp(str, "SHT_GNU_versym") == 0)      return SHT_GNU_versym;
+
+    // Handle unknown types
+    if (strncmp(str, "SHT_UNKNOWN(", 12) == 0) {
+        return (Elf64_Word)strtoul(str + 12, NULL, 0);
+    }
+
+    fprintf(stderr, "Unknown sh_type: %s\n", str);
+    exit(EXIT_FAILURE);
+}
+
+static Elf64_Xword get_sh_flags_value(const char *str) {
+    Elf64_Xword flags = 0;
+    char *token;
+    char *input_str = strdup(str);
+    if (!input_str) {
+        perror("strdup");
+        exit(EXIT_FAILURE);
+    }
+
+    token = strtok(input_str, " |");
+    while (token != NULL) {
+        if (strcmp(token, "SHF_WRITE") == 0) {
+            flags |= SHF_WRITE;
+        } else if (strcmp(token, "SHF_ALLOC") == 0) {
+            flags |= SHF_ALLOC;
+        } else if (strcmp(token, "SHF_EXECINSTR") == 0) {
+            flags |= SHF_EXECINSTR;
+        } else if (strcmp(token, "SHF_MERGE") == 0) {
+            flags |= SHF_MERGE;
+        } else if (strcmp(token, "SHF_STRINGS") == 0) {
+            flags |= SHF_STRINGS;
+        } else if (strcmp(token, "SHF_INFO_LINK") == 0) {
+            flags |= SHF_INFO_LINK;
+        } else if (strcmp(token, "SHF_LINK_ORDER") == 0) {
+            flags |= SHF_LINK_ORDER;
+        } else if (strcmp(token, "SHF_OS_NONCONFORMING") == 0) {
+            flags |= SHF_OS_NONCONFORMING;
+        } else if (strcmp(token, "SHF_GROUP") == 0) {
+            flags |= SHF_GROUP;
+        } else if (strcmp(token, "SHF_TLS") == 0) {
+            flags |= SHF_TLS;
+        } else if (strcmp(token, "SHF_COMPRESSED") == 0) {
+            flags |= SHF_COMPRESSED;
+        } else if (strcmp(token, "SHF_GNU_RETAIN") == 0) {
+            flags |= SHF_GNU_RETAIN;
+        } else if (strcmp(token, "0") == 0) {
+            // No flags set
+        } else {
+            fprintf(stderr, "Unknown sh_flag: %s\n", token);
+            exit(EXIT_FAILURE);
+        }
+
+        token = strtok(NULL, " |");
+    }
+
+    free(input_str);
+    return flags;
+}
+
+// Function to parse a field line and extract the field name and value
+static void parse_field(const char *line, char **out_name, char **out_value) {
+    const char *start = line;
+
+    // Skip leading whitespace
+    while (isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    // Expecting '('
+    if (*start != '(') {
+        fprintf(stderr, "Error: Expected '(', got '%c'\n", *start);
+        exit(EXIT_FAILURE);
+    }
+    start++;
+
+    // Extract field name
+    const char *name_start = start;
+    while (*start && !isspace((unsigned char)*start)) {
+        start++;
+    }
+    size_t name_len = start - name_start;
+    char *name = malloc(name_len + 1);
+    if (!name) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+    strncpy(name, name_start, name_len);
+    name[name_len] = '\0';
+
+    // Skip whitespace before value
+    while (isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    // Extract value
+    const char *value_start = start;
+    const char *value_end = strchr(value_start, ')');
+    if (!value_end) {
+        fprintf(stderr, "Error: Expected ')' in line: %s\n", line);
+        exit(EXIT_FAILURE);
+    }
+    size_t value_len = value_end - value_start;
+    char *value = malloc(value_len + 1);
+    if (!value) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+    strncpy(value, value_start, value_len);
+    value[value_len] = '\0';
+
+    // Set output parameters
+    *out_name = name;
+    *out_value = value;
+}
+
+static void parse_section_headers(FILE *fp, ElfBinary *binary) {
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    int shdr_count = 0;
+    int num_sections = binary->ehdr.e_shnum;
+
+    binary->shdrs = malloc(sizeof(Elf64_Shdr) * num_sections);
+    binary->section_names = malloc(sizeof(char *) * num_sections);
+    binary->section_data = malloc(sizeof(unsigned char *) * num_sections);
+    if (!binary->shdrs || !binary->section_names || !binary->section_data) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+    memset(binary->shdrs, 0, sizeof(Elf64_Shdr) * num_sections);
+    memset(binary->section_names, 0, sizeof(char *) * num_sections);
+    memset(binary->section_data, 0, sizeof(unsigned char *) * num_sections);
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        // Trim leading whitespace
+        char *trimmed_line = line;
+        while (isspace((unsigned char)*trimmed_line)) {
+            trimmed_line++;
+        }
+
+        if (strncmp(trimmed_line, "(section_header", 15) == 0) {
+            if (shdr_count >= num_sections) {
+                fprintf(stderr, "Error: More section headers in Lisp file than specified in e_shnum\n");
+                exit(EXIT_FAILURE);
+            }
+            Elf64_Shdr *current_shdr = &binary->shdrs[shdr_count];
+
+            while ((read = getline(&line, &len, fp)) != -1) {
+                // Trim leading whitespace
+                char *inner_trimmed_line = line;
+                while (isspace((unsigned char)*inner_trimmed_line)) {
+                    inner_trimmed_line++;
+                }
+
+                // Check for end of section_header
+                if (strcmp(inner_trimmed_line, ")\n") == 0 || strcmp(inner_trimmed_line, ")") == 0) {
+                    break;
+                }
+
+                // Parse the field
+                char *field_name = NULL;
+                char *field_value = NULL;
+                parse_field(inner_trimmed_line, &field_name, &field_value);
+
+                // Now process the field based on its name
+                if (strcmp(field_name, "sh_name") == 0) {
+                    current_shdr->sh_name = (Elf64_Word)strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_name_str") == 0) {
+                    // Parse section name string
+                    size_t value_len = strlen(field_value);
+                    if (field_value[0] == '\"' && field_value[value_len - 1] == '\"') {
+                        field_value[value_len - 1] = '\0'; // Remove trailing quote
+                        binary->section_names[shdr_count] = strdup(field_value + 1); // Skip leading quote
+                        if (!binary->section_names[shdr_count]) {
+                            perror("strdup");
+                            exit(EXIT_FAILURE);
+                        }
+                    } else {
+                        fprintf(stderr, "Error: Invalid format for sh_name_str: %s\n", field_value);
+                        exit(EXIT_FAILURE);
+                    }
+                } else if (strcmp(field_name, "sh_type") == 0) {
+                    current_shdr->sh_type = get_sh_type_value(field_value);
+                } else if (strcmp(field_name, "sh_flags") == 0) {
+                    current_shdr->sh_flags = get_sh_flags_value(field_value);
+                } else if (strcmp(field_name, "sh_addr") == 0) {
+                    current_shdr->sh_addr = strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_offset") == 0) {
+                    current_shdr->sh_offset = strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_size") == 0) {
+                    current_shdr->sh_size = strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_link") == 0) {
+                    current_shdr->sh_link = (Elf64_Word)strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_info") == 0) {
+                    current_shdr->sh_info = (Elf64_Word)strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_addralign") == 0) {
+                    current_shdr->sh_addralign = strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_entsize") == 0) {
+                    current_shdr->sh_entsize = strtoul(field_value, NULL, 0);
+                } else if (strcmp(field_name, "sh_data") == 0) {
+                    if (current_shdr->sh_type == SHT_NOBITS) {
+                        fprintf(stderr, "Warning: sh_data field for SHT_NOBITS section %s. Ignoring data.\n",
+                                binary->section_names[shdr_count]);
+                    } else {
+                        // Process sh_data as usual for other section types
+                        if (strncmp(field_value, "#hex\"", 5) == 0) {
+                            const char *hex_data = field_value + 5;
+                            size_t hex_len = strlen(hex_data);
+
+                            // Remove trailing quote
+                            if (hex_len >= 1 && hex_data[hex_len - 1] == '\"') {
+                                hex_len--;
+                            } else {
+                                fprintf(stderr, "Error: Invalid format for sh_data\n");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            size_t data_size = hex_len / 2;
+                            unsigned char *data = malloc(data_size);
+                            if (!data) {
+                                perror("malloc");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            // Convert hex string to binary data
+                            for (size_t i = 0; i < data_size; i++) {
+                                char byte_str[3] = { hex_data[i * 2], hex_data[i * 2 + 1], '\0' };
+                                data[i] = (unsigned char)strtoul(byte_str, NULL, 16);
+                            }
+                            binary->section_data[shdr_count] = data;
+
+                            // Update sh_size if necessary
+                            if (current_shdr->sh_size != data_size) {
+                                fprintf(stderr, "Warning: sh_size mismatch for section %s. Expected %lu, got %lu. Updating sh_size.\n",
+                                        binary->section_names[shdr_count], current_shdr->sh_size, data_size);
+                                current_shdr->sh_size = data_size;
+                            }
+                        } else {
+                            fprintf(stderr, "Error: sh_data does not start with #hex\"\n");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                } else {
+                    fprintf(stderr, "Warning: Unknown field '%s' in section header\n", field_name);
+                }
+
+                // Free the allocated field name and value
+                free(field_name);
+                free(field_value);
+            }
+            shdr_count++;
+        } else if (strcmp(trimmed_line, ")\n") == 0 || strcmp(trimmed_line, ")") == 0) {
+            break; // End of section_headers
+        }
+    }
+
+    if (shdr_count != num_sections) {
+        fprintf(stderr, "Warning: Number of section headers parsed (%d) does not match e_shnum (%d)\n", shdr_count, num_sections);
+        binary->ehdr.e_shnum = shdr_count; // Update e_shnum if necessary
+    }
+
+    free(line); // Free the allocated buffer
+}
+
 static void parse_lisp_representation(FILE *fp, ElfBinary *binary) {
     char line[256];
+    int elf_header_parsed = 0;
     while (fgets(line, sizeof(line), fp)) {
         if (strstr(line, "(elf_header")) {
             parse_elf_header(fp, binary);
+            elf_header_parsed = 1;
         } else if (strstr(line, "(program_headers")) {
             parse_program_headers(fp, binary);
+        } else if (strstr(line, "(section_headers")) {
+            if (!elf_header_parsed) {
+                fprintf(stderr, "Error: ELF header must be parsed before section headers\n");
+                exit(EXIT_FAILURE);
+            }
+            parse_section_headers(fp, binary);
         }
     }
 }
