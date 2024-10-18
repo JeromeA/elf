@@ -52,9 +52,9 @@ static const char *get_p_type_string(Elf64_Word p_type) {
     }
 }
 
-static void output_program_headers_lisp(int phnum, const Elf64_Phdr *phdrs, FILE *fp) {
+static void output_program_headers_lisp(size_t phnum, const Elf64_Phdr *phdrs, FILE *fp) {
     fprintf(fp, "  (program_headers\n");
-    for (int i = 0; i < phnum; i++) {
+    for (size_t i = 0; i < phnum; i++) {
         const Elf64_Phdr *phdr = &phdrs[i];
         fprintf(fp, "    (program_header\n");
         fprintf(fp, "      (p_type %s)\n", get_p_type_string(phdr->p_type));
@@ -190,9 +190,9 @@ static const char *get_sh_flags_string(Elf64_Xword sh_flags) {
     return flags_str;
 }
 
-static void output_section_headers_lisp(int shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, FILE *fp) {
+static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, FILE *fp) {
     fprintf(fp, "  (section_headers\n");
-    for (int i = 0; i < shnum; i++) {
+    for (size_t i = 0; i < shnum; i++) {
         const Elf64_Shdr *shdr = &shdrs[i];
         const char *section_name = section_names[i];
         fprintf(fp, "    (section_header\n");
