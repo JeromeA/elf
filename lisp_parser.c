@@ -1,4 +1,5 @@
 #include "lisp_parser.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,23 +41,33 @@ static Elf64_Half get_e_machine_value(const char *str) {
     exit(EXIT_FAILURE);
 }
 
+/* Helper function to read, trim a line, and determine if parsing should continue */
+static bool get_line(FILE *fp, char **input, char **line, size_t *len) {
+    if (getline(input, len, fp) == -1) {
+        return false; // EOF or read error
+    }
+
+    *line = *input;
+    while (isspace((unsigned char)**line)) {
+        (*line)++;
+    }
+
+    // Stop if the line is a lone closing parenthesis
+    if (strcmp(*line, ")\n") == 0 || strcmp(*line, ")") == 0) {
+        return false;
+    }
+
+    return true; // Continue parsing
+}
+
 /* Parses the ELF header from the Lisp representation with constants */
 static void parse_elf_header(FILE *fp, ElfBinary *binary) {
-    char line[256];
+    char *input = NULL;
+    char *line = NULL;
+    size_t len = 0;
     char name[64], value_str[128];
 
-    while (fgets(line, sizeof(line), fp)) {
-        // Trim leading whitespace
-        char *trimmed_line = line;
-        while (isspace((unsigned char)*trimmed_line)) {
-            trimmed_line++;
-        }
-
-        // Check if the line is only a closing parenthesis
-        if (strcmp(trimmed_line, ")\n") == 0 || strcmp(trimmed_line, ")") == 0) {
-            break; // End of elf_header
-        }
-
+    while (get_line(fp, &input, &line, &len)) {
         if (sscanf(line, "    (%[^ ] %[^)])", name, value_str) == 2) {
             if (strcmp(name, "e_ident") == 0) {
                 // Skip '0x' prefix if present
@@ -97,6 +108,7 @@ static void parse_elf_header(FILE *fp, ElfBinary *binary) {
             }
         }
     }
+    free(input);
 }
 
 /* Function to map string to p_type value */
@@ -153,19 +165,12 @@ static Elf64_Word get_p_flags_value(const char *str) {
 }
 
 static void parse_program_header(FILE *fp, Elf64_Phdr *phdr) {
-    char line[256];
+    char *input = NULL;
+    char *line = NULL;
+    size_t len;
     char name[64], value_str[128];
 
-    while (fgets(line, sizeof(line), fp)) {
-        char *inner_trimmed_line = line;
-        while (isspace((unsigned char)*inner_trimmed_line)) {
-            inner_trimmed_line++;
-        }
-
-        if (strcmp(inner_trimmed_line, ")\n") == 0 || strcmp(inner_trimmed_line, ")") == 0) {
-            break;
-        }
-
+    while (get_line(fp, &input, &line, &len)) {
         if (sscanf(line, "      (p_%[^ ] %[^)])", name, value_str) == 2) {
             if (strcmp(name, "type") == 0) {
                 phdr->p_type = get_p_type_value(value_str);
@@ -186,10 +191,13 @@ static void parse_program_header(FILE *fp, Elf64_Phdr *phdr) {
             }
         }
     }
+    free(input);
 }
 
 static void parse_program_headers(FILE *fp, ElfBinary *binary) {
-    char line[256];
+    char *input = NULL;
+    char *line = NULL;
+    size_t len;
     int phdr_count = 0;
     int phdr_capacity = 4;
 
@@ -199,13 +207,8 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
         exit(EXIT_FAILURE);
     }
 
-    while (fgets(line, sizeof(line), fp)) {
-        char *trimmed_line = line;
-        while (isspace((unsigned char)*trimmed_line)) {
-            trimmed_line++;
-        }
-
-        if (strncmp(trimmed_line, "(program_header", 15) == 0) {
+    while (get_line(fp, &input, &line, &len)) {
+        if (strncmp(line, "(program_header", 15) == 0) {
             if (phdr_count == phdr_capacity) {
                 phdr_capacity *= 2;
                 binary->phdrs = realloc(binary->phdrs, sizeof(Elf64_Phdr) * phdr_capacity);
@@ -219,12 +222,11 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
 
             parse_program_header(fp, current_phdr);
             phdr_count++;
-        } else if (strcmp(trimmed_line, ")\n") == 0 || strcmp(trimmed_line, ")") == 0) {
-            break;
         }
     }
 
     binary->ehdr.e_phnum = phdr_count;
+    free(input);
 }
 
 static Elf64_Word get_sh_type_value(const char *str) {
@@ -374,27 +376,16 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
 }
 
 static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
+    char *input = NULL;
     char *line = NULL;
     size_t len = 0;
-    ssize_t read;
     Elf64_Shdr *current_shdr = &binary->shdrs[shdr_index];
 
-    while ((read = getline(&line, &len, fp)) != -1) {
-        // Trim leading whitespace
-        char *inner_trimmed_line = line;
-        while (isspace((unsigned char)*inner_trimmed_line)) {
-            inner_trimmed_line++;
-        }
-
-        // Check for end of section_header
-        if (strcmp(inner_trimmed_line, ")\n") == 0 || strcmp(inner_trimmed_line, ")") == 0) {
-            break;
-        }
-
+    while (get_line(fp, &input, &line, &len)) {
         // Parse the field
         char *field_name = NULL;
         char *field_value = NULL;
-        parse_field(inner_trimmed_line, &field_name, &field_value);
+        parse_field(line, &field_name, &field_value);
 
         // Process the field based on its name
         if (strcmp(field_name, "sh_name") == 0) {
@@ -478,14 +469,13 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
         free(field_name);
         free(field_value);
     }
-    free(line);
+    free(input);
 }
 
 static void parse_section_headers(FILE *fp, ElfBinary *binary) {
+    char *input = NULL;
     char *line = NULL;
     size_t len = 0;
-    ssize_t read;
-
     int shdr_count = 0;
     int num_sections = binary->ehdr.e_shnum;
 
@@ -497,21 +487,14 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
         exit(EXIT_FAILURE);
     }
 
-    while ((read = getline(&line, &len, fp)) != -1) {
-        char *trimmed_line = line;
-        while (isspace((unsigned char)*trimmed_line)) {
-            trimmed_line++;
-        }
-
-        if (strncmp(trimmed_line, "(section_header", 15) == 0) {
+    while (get_line(fp, &input, &line, &len)) {
+        if (strncmp(line, "(section_header", 15) == 0) {
             if (shdr_count >= num_sections) {
                 fprintf(stderr, "Error: More section headers in Lisp file than specified in e_shnum\n");
                 exit(EXIT_FAILURE);
             }
             parse_section_header(fp, binary, shdr_count);
             shdr_count++;
-        } else if (strcmp(trimmed_line, ")\n") == 0 || strcmp(trimmed_line, ")") == 0) {
-            break;
         }
     }
 
@@ -521,7 +504,7 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
         binary->ehdr.e_shnum = shdr_count;
     }
 
-    free(line);
+    free(input);
 }
 
 static void parse_lisp_representation(FILE *fp, ElfBinary *binary) {
