@@ -1,4 +1,5 @@
 #include "lisp_writer.h"
+#include "elf_defaults.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,7 +100,8 @@ static const char *get_e_machine_string(Elf64_Half e_machine) {
     }
 }
 
-static void output_elf_header_lisp(const Elf64_Ehdr *ehdr, FILE *fp) {
+static void output_elf_header_lisp(const ElfBinary *binary, FILE *fp) {
+    const Elf64_Ehdr *ehdr = &binary->ehdr;
     fprintf(fp, "  (elf_header\n");
     fprintf(fp, "    (e_ident 0x");
     for (int i = 0; i < EI_NIDENT; i++) {
@@ -110,7 +112,7 @@ static void output_elf_header_lisp(const Elf64_Ehdr *ehdr, FILE *fp) {
     fprintf(fp, "    (e_machine %s)\n", get_e_machine_string(ehdr->e_machine));
     fprintf(fp, "    (e_version %u)\n", ehdr->e_version);
     fprintf(fp, "    (e_entry 0x%lx)\n", ehdr->e_entry);
-    fprintf(fp, "    (e_phoff %lu)\n", ehdr->e_phoff);
+    fprintf(fp, "    %s(e_phoff %lu)\n", is_default_e_phoff(binary) ? ";" : "", ehdr->e_phoff);
     fprintf(fp, "    (e_shoff %lu)\n", ehdr->e_shoff);
     fprintf(fp, "    (e_flags %u)\n", ehdr->e_flags);
     fprintf(fp, "    (e_ehsize %u)\n", ehdr->e_ehsize);
@@ -229,7 +231,7 @@ void output_lisp_representation(const ElfBinary *binary, const char *output_file
     }
 
     fprintf(fp, "(elf_binary\n");
-    output_elf_header_lisp(&binary->ehdr, fp);
+    output_elf_header_lisp(binary, fp);
     output_program_headers_lisp(binary->ehdr.e_phnum, binary->phdrs, fp);
     output_section_headers_lisp(binary->ehdr.e_shnum, binary->shdrs, binary->section_names, binary->section_data, fp);
 
