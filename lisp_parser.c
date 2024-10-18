@@ -193,12 +193,11 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
     int phdr_count = 0;
     int phdr_capacity = 4;
 
-    binary->phdrs = malloc(sizeof(Elf64_Phdr) * phdr_capacity);
+    binary->phdrs = calloc(phdr_capacity, sizeof(Elf64_Phdr));
     if (!binary->phdrs) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
-    memset(binary->phdrs, 0, sizeof(Elf64_Phdr) * phdr_capacity);
 
     while (fgets(line, sizeof(line), fp)) {
         char *trimmed_line = line;
@@ -490,16 +489,13 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
     int shdr_count = 0;
     int num_sections = binary->ehdr.e_shnum;
 
-    binary->shdrs = malloc(sizeof(Elf64_Shdr) * num_sections);
-    binary->section_names = malloc(sizeof(char *) * num_sections);
-    binary->section_data = malloc(sizeof(unsigned char *) * num_sections);
+    binary->shdrs = calloc(num_sections, sizeof(Elf64_Shdr));
+    binary->section_names = calloc(num_sections, sizeof(char *));
+    binary->section_data = calloc(num_sections, sizeof(unsigned char *));
     if (!binary->shdrs || !binary->section_names || !binary->section_data) {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
-    memset(binary->shdrs, 0, sizeof(Elf64_Shdr) * num_sections);
-    memset(binary->section_names, 0, sizeof(char *) * num_sections);
-    memset(binary->section_data, 0, sizeof(unsigned char *) * num_sections);
 
     while ((read = getline(&line, &len, fp)) != -1) {
         char *trimmed_line = line;
