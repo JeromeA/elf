@@ -71,6 +71,51 @@ static char *read_shstrtab(const Elf64_Ehdr *ehdr, const Elf64_Shdr *shdrs, cons
     return shstrtab;
 }
 
+static char **read_section_names(const Elf64_Ehdr *ehdr, const Elf64_Shdr *shdrs, const char *shstrtab) {
+    int shnum = ehdr->e_shnum;
+    char **section_names = malloc(sizeof(char *) * shnum);
+    if (!section_names) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < shnum; i++) {
+        const char *name = &shstrtab[shdrs[i].sh_name];
+        section_names[i] = strdup(name);
+        if (!section_names[i]) {
+            perror("strdup");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    return section_names;
+}
+
+static unsigned char **read_section_data(const Elf64_Ehdr *ehdr, const Elf64_Shdr *shdrs, const void *map) {
+    int shnum = ehdr->e_shnum;
+    unsigned char **section_data = malloc(sizeof(unsigned char *) * shnum);
+    if (!section_data) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < shnum; i++) {
+        const Elf64_Shdr *shdr = &shdrs[i];
+        if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0) {
+            section_data[i] = malloc(shdr->sh_size);
+            if (!section_data[i]) {
+                perror("malloc");
+                exit(EXIT_FAILURE);
+            }
+            memcpy(section_data[i], (const char *)map + shdr->sh_offset, shdr->sh_size);
+        } else {
+            section_data[i] = NULL;
+        }
+    }
+
+    return section_data;
+}
+
 void read_elf_binary(const char *filename, ElfBinary *binary) {
     int fd = open_elf_file(filename);
     size_t filesize;
@@ -84,39 +129,8 @@ void read_elf_binary(const char *filename, ElfBinary *binary) {
     binary->phdrs = read_program_headers(ehdr, map);
     binary->shdrs = read_section_headers(ehdr, map);
     binary->shstrtab = read_shstrtab(ehdr, binary->shdrs, map);
-
-    // Allocate arrays for section names and data
-    binary->section_names = malloc(sizeof(char *) * binary->ehdr.e_shnum);
-    binary->section_data = malloc(sizeof(unsigned char *) * binary->ehdr.e_shnum);
-    if (!binary->section_names || !binary->section_data) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
-
-    // Read section names and data
-    for (int i = 0; i < binary->ehdr.e_shnum; i++) {
-        const Elf64_Shdr *shdr = &binary->shdrs[i];
-        
-        // Read section name
-        const char *section_name = &binary->shstrtab[shdr->sh_name];
-        binary->section_names[i] = strdup(section_name);
-        if (!binary->section_names[i]) {
-            perror("strdup");
-            exit(EXIT_FAILURE);
-        }
-
-        // Read section data
-        if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0) {
-            binary->section_data[i] = malloc(shdr->sh_size);
-            if (!binary->section_data[i]) {
-                perror("malloc");
-                exit(EXIT_FAILURE);
-            }
-            memcpy(binary->section_data[i], (const char *)map + shdr->sh_offset, shdr->sh_size);
-        } else {
-            binary->section_data[i] = NULL;
-        }
-    }
+    binary->section_names = read_section_names(ehdr, binary->shdrs, binary->shstrtab);
+    binary->section_data = read_section_data(ehdr, binary->shdrs, map);
 
     munmap(map, filesize);
 }
