@@ -377,10 +377,20 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
 
     // Extract value
     const char *value_start = start;
-    const char *value_end = strchr(value_start, ')');
-    if (!value_end) {
-        fprintf(stderr, "Error: Expected ')' in line: %s\n", line);
-        exit(EXIT_FAILURE);
+    const char *value_end = NULL;
+    if (value_start[0] == '"') {
+        value_end = strchr(value_start + 1, '"');
+        if (!value_end) {
+            fprintf(stderr, "Error: Expected terminating '\"' in line: %s\n", line);
+            exit(EXIT_FAILURE);
+        }
+        value_end++;
+    } else {
+        value_end = strchr(value_start, ')');
+        if (!value_end) {
+            fprintf(stderr, "Error: Expected terminating ')' in line: %s\n", line);
+            exit(EXIT_FAILURE);
+        }
     }
     size_t value_len = value_end - value_start;
     char *value = malloc(value_len + 1);
@@ -474,12 +484,41 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
 
                     // Update sh_size if necessary
                     if (current_shdr->sh_size != data_size) {
-                        fprintf(stderr, "Warning: sh_size mismatch for section %s. Expected %lu, got %lu. Updating sh_size.\n",
+                        fprintf(stderr, "Warning: sh_size mismatch for section %s. Expected %lu, got %lu bytes of data. Updating sh_size.\n",
                                 binary->section_names[shdr_index], current_shdr->sh_size, data_size);
                         current_shdr->sh_size = data_size;
                     }
                 } else {
                     fprintf(stderr, "Error: sh_data does not start with #hex\"\n");
+                    exit(EXIT_FAILURE);
+                }
+            }
+        } else if (strcmp(field_name, "sh_data_string") == 0) {
+            if (current_shdr->sh_type == SHT_NOBITS) {
+                fprintf(stderr, "Warning: sh_data_string field for SHT_NOBITS section %s. Ignoring data.\n",
+                        binary->section_names[shdr_index]);
+            } else {
+                size_t value_len = strlen(field_value);
+                if (field_value[0] == '\"' && field_value[value_len - 1] == '\"') {
+                    // Allocate space including null terminator
+                    size_t string_len = value_len - 2;
+                    unsigned char *data = malloc(string_len + 1);
+                    if (!data) {
+                        perror("malloc");
+                        exit(EXIT_FAILURE);
+                    }
+                    memcpy(data, field_value + 1, string_len);
+                    data[string_len] = 0x00; // Append null byte
+                    binary->section_data[shdr_index] = data;
+
+                    // Update sh_size if necessary
+                    if (current_shdr->sh_size != string_len + 1) {
+                        fprintf(stderr, "Warning: sh_size mismatch for section %s. Expected %lu, got %lu bytes of data. Updating sh_size.\n",
+                                binary->section_names[shdr_index], current_shdr->sh_size, string_len + 1);
+                        current_shdr->sh_size = string_len + 1;
+                    }
+                } else {
+                    fprintf(stderr, "Error: Invalid format for sh_data_string: %s\n", field_value);
                     exit(EXIT_FAILURE);
                 }
             }

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 static const char *get_p_flags_string(Elf64_Word p_flags) {
     static char flags_str[32];
@@ -192,6 +193,16 @@ static const char *get_sh_flags_string(Elf64_Xword sh_flags) {
     return flags_str;
 }
 
+static bool is_section_data_string(const unsigned char *data, size_t size) {
+    if (size == 0) return false;
+    for (size_t i = 0; i < size - 1; i++) {
+        if (data[i] < 0x20 || data[i] > 0x7E) {
+            return false;
+        }
+    }
+    return data[size - 1] == 0x00;
+}
+
 static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, FILE *fp) {
     fprintf(fp, "  (section_headers\n");
     for (size_t i = 0; i < shnum; i++) {
@@ -210,13 +221,26 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, c
         fprintf(fp, "      (sh_addralign %lu)\n", shdr->sh_addralign);
         fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
         
-        // Output section data as hex dump
+        // Output section data as hex dump or string
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
-            fprintf(fp, "      (sh_data #hex\"");
-            for (size_t j = 0; j < shdr->sh_size; j++) {
-                fprintf(fp, "%02x", section_data[i][j]);
+            if (is_section_data_string(section_data[i], shdr->sh_size)) {
+                // Convert to C string (exclude the trailing null byte)
+                char *string_data = malloc(shdr->sh_size);
+                if (!string_data) {
+                    perror("malloc");
+                    exit(EXIT_FAILURE);
+                }
+                memcpy(string_data, section_data[i], shdr->sh_size - 1);
+                string_data[shdr->sh_size - 1] = '\0';
+                fprintf(fp, "      (sh_data_string \"%s\")\n", string_data);
+                free(string_data);
+            } else {
+                fprintf(fp, "      (sh_data #hex\"");
+                for (size_t j = 0; j < shdr->sh_size; j++) {
+                    fprintf(fp, "%02x", section_data[i][j]);
+                }
+                fprintf(fp, "\")\n");
             }
-            fprintf(fp, "\")\n");
         }
         fprintf(fp, "    )\n");
     }
