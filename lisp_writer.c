@@ -115,10 +115,10 @@ static void output_elf_header_lisp(const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "    %s(e_phoff %lu)\n", is_default_e_phoff(binary) ? ";" : "", ehdr->e_phoff);
     fprintf(fp, "    (e_shoff %lu)\n", ehdr->e_shoff);
     fprintf(fp, "    (e_flags %u)\n", ehdr->e_flags);
-    fprintf(fp, "    (e_ehsize %u)\n", ehdr->e_ehsize);
-    fprintf(fp, "    (e_phentsize %u)\n", ehdr->e_phentsize);
-    fprintf(fp, "    (e_phnum %u)\n", ehdr->e_phnum);
-    fprintf(fp, "    (e_shentsize %u)\n", ehdr->e_shentsize);
+    fprintf(fp, "    ;(e_ehsize %u)\n", ehdr->e_ehsize);
+    fprintf(fp, "    %s(e_phentsize %u)\n", is_default_e_phentsize(binary) ? ";" : "", ehdr->e_phentsize);
+    fprintf(fp, "    ;(e_phnum %u)\n", ehdr->e_phnum);
+    fprintf(fp, "    %s(e_shentsize %u)\n", is_default_e_shentsize(binary) ? ";" : "", ehdr->e_shentsize);
     fprintf(fp, "    (e_shnum %u)\n", ehdr->e_shnum);
     fprintf(fp, "    (e_shstrndx %u)\n", ehdr->e_shstrndx);
     fprintf(fp, "  )\n");
