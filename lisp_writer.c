@@ -193,14 +193,53 @@ static const char *get_sh_flags_string(Elf64_Xword sh_flags) {
     return flags_str;
 }
 
-static bool is_section_data_string(const unsigned char *data, size_t size) {
+static bool is_string(const unsigned char *data, size_t size) {
     if (size == 0) return false;
     for (size_t i = 0; i < size - 1; i++) {
-        if (data[i] < 0x20 || data[i] > 0x7E) {
+        if (data[i] < 0x20 || data[i] > 0x7F) {
             return false;
         }
     }
     return data[size - 1] == 0x00;
+}
+
+static bool is_string_table(const unsigned char *data, size_t size) {
+    if (size < 1 || data[0] != 0x00) return false;
+    size_t i = 1;
+    while (i < size) {
+        // Each string must consist of printable ASCII characters
+        while (i < size && data[i] != 0x00) {
+            if (data[i] < 0x20 || data[i] > 0x7F) {
+                return false;
+            }
+            i++;
+        }
+        if (i >= size) return false;
+        i++; // Move past the null terminator
+    }
+    return true;
+}
+
+static void output_sh_data_lisp(const unsigned char *data, size_t size, FILE *fp) {
+    fprintf(fp, "      (sh_data\n");
+    if (is_string_table(data, size)) {
+        size_t pos = 0;
+        while (pos < size) {
+            fprintf(fp, "        (string \"%s\")\n", data + pos);
+            while (pos < size && data[pos]) pos++;
+            pos++;
+        }
+    } else if (is_string(data, size)) {
+        fprintf(fp, "        (string \"%s\")\n", data);
+    }
+    else {
+        fprintf(fp, "        (binary x");
+        for (size_t i = 0; i < size; i++) {
+            fprintf(fp, "%02X", data[i]);
+        }
+        fprintf(fp, ")\n");
+    }
+    fprintf(fp, "      )\n");
 }
 
 static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, FILE *fp) {
@@ -221,26 +260,8 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, c
         fprintf(fp, "      (sh_addralign %lu)\n", shdr->sh_addralign);
         fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
         
-        // Output section data as hex dump or string
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
-            if (is_section_data_string(section_data[i], shdr->sh_size)) {
-                // Convert to C string (exclude the trailing null byte)
-                char *string_data = malloc(shdr->sh_size);
-                if (!string_data) {
-                    perror("malloc");
-                    exit(EXIT_FAILURE);
-                }
-                memcpy(string_data, section_data[i], shdr->sh_size - 1);
-                string_data[shdr->sh_size - 1] = '\0';
-                fprintf(fp, "      (sh_data_string \"%s\")\n", string_data);
-                free(string_data);
-            } else {
-                fprintf(fp, "      (sh_data #hex\"");
-                for (size_t j = 0; j < shdr->sh_size; j++) {
-                    fprintf(fp, "%02x", section_data[i][j]);
-                }
-                fprintf(fp, "\")\n");
-            }
+          output_sh_data_lisp(section_data[i], shdr->sh_size, fp);
         }
         fprintf(fp, "    )\n");
     }

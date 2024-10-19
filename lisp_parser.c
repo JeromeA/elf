@@ -42,7 +42,11 @@ static Elf64_Half get_e_machine_value(const char *str) {
     exit(EXIT_FAILURE);
 }
 
-/* Helper function to read, trim a line, and determine if parsing should continue */
+/*
+ * Helper function to read, trim a line, and determine if parsing should continue.
+ * Empty lines and comments are skipped.
+ * Return true if line/len is returning a useful line, false if there is nothing to read anymore.
+ */
 static bool get_line(FILE *fp, char **input, char **line, size_t *len) {
     while (true) {
         if (getline(input, len, fp) == -1) {
@@ -375,7 +379,9 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
     // Extract value
     const char *value_start = start;
     const char *value_end = NULL;
-    if (value_start[0] == '"') {
+    if (value_start[0] == 0) {
+        value_end = value_start;
+    } else if (value_start[0] == '"') {
         value_end = strchr(value_start + 1, '"');
         if (!value_end) {
             fprintf(stderr, "Error: Expected terminating '\"' in line: %s\n", line);
@@ -397,6 +403,88 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
     // Set output parameters
     *out_name = name;
     *out_value = value;
+}
+
+static unsigned char* parse_sh_data(FILE *fp, size_t *out_size) {
+    unsigned char *data = NULL;
+    char *input = NULL;
+    char *line = NULL;
+    size_t len = 0;
+    size_t data_capacity = 0;
+    size_t data_size = 0;
+
+    while (get_line(fp, &input, &line, &len)) {
+        char *attr_name = NULL;
+        char *attr_value = NULL;
+        parse_field(line, &attr_name, &attr_value);
+
+        if (strcmp(attr_name, "string") == 0) {
+            // Extract the string without quotes
+            size_t value_len = strlen(attr_value);
+            if (attr_value[0] != '\"' || attr_value[value_len - 1] != '\"') {
+                fprintf(stderr, "Error: Invalid format for string attribute: %s\n", attr_value);
+                exit(EXIT_FAILURE);
+            }
+            attr_value[value_len - 1] = '\0';
+            char *str = strdup(attr_value + 1);
+            if (!str) {
+                perror("strdup");
+                exit(EXIT_FAILURE);
+            }
+            size_t str_len = strlen(str) + 1; // Include null terminator
+
+            // Append to data buffer
+            if (data_size + str_len > data_capacity) {
+                data_capacity = (data_capacity == 0) ? 64 : data_capacity * 2;
+                data = realloc(data, data_capacity);
+                if (!data) {
+                    perror("realloc");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            memcpy(&data[data_size], str, str_len);
+            data_size += str_len;
+            free(str);
+        } else if (strcmp(attr_name, "binary") == 0) {
+            // Expecting binary data in the format x20404F4F0012
+            if (strncmp(attr_value, "x", 1) != 0) {
+                fprintf(stderr, "Error: Invalid format for binary attribute: %s\n", attr_value);
+                exit(EXIT_FAILURE);
+            }
+            const char *hex_str = attr_value + 1;
+            size_t hex_len = strlen(hex_str);
+            if (hex_len % 2 != 0) {
+                fprintf(stderr, "Error: Binary hex string length must be even: %s\n", hex_str);
+                exit(EXIT_FAILURE);
+            }
+            size_t bin_len = hex_len / 2;
+            unsigned char *bin_data = malloc(bin_len);
+            if (!bin_data) {
+                perror("malloc");
+                exit(EXIT_FAILURE);
+            }
+            for (size_t i = 0; i < bin_len; i++) {
+                char byte_str[3] = { hex_str[i * 2], hex_str[i * 2 + 1], '\0' };
+                bin_data[i] = (unsigned char)strtoul(byte_str, NULL, 16);
+            }
+
+            // Replace existing data
+            free(data);
+            data = bin_data;
+            data_size = bin_len;
+            data_capacity = bin_len;
+        } else {
+            fprintf(stderr, "Error: Unknown attribute '%s' in sh_data\n", attr_name);
+            exit(EXIT_FAILURE);
+        }
+
+        free(attr_name);
+        free(attr_value);
+    }
+
+    free(input);
+    *out_size = data_size;
+    return data;
 }
 
 static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
@@ -447,65 +535,18 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
             current_shdr->sh_entsize = strtoul(field_value, NULL, 0);
         } else if (strcmp(field_name, "sh_data") == 0) {
             if (current_shdr->sh_type == SHT_NOBITS) {
-                fprintf(stderr, "Warning: sh_data field for SHT_NOBITS section %s. Ignoring data.\n",
-                        binary->section_names[shdr_index]);
+                fprintf(stderr, "Error: sh_data field for SHT_NOBITS section %s.\n", binary->section_names[shdr_index]);
+                exit(EXIT_FAILURE);
             } else {
-                if (strncmp(field_value, "#hex\"", 5) == 0) {
-                    const char *hex_data = field_value + 5;
-                    size_t hex_len = strlen(hex_data);
-
-                    if (hex_len >= 1 && hex_data[hex_len - 1] == '\"') {
-                        hex_len--;
-                    } else {
-                        fprintf(stderr, "Error: Invalid format for sh_data\n");
-                        exit(EXIT_FAILURE);
-                    }
-
-                    size_t data_size = hex_len / 2;
-                    unsigned char *data = xmalloc(data_size);
-
-                    // Convert hex string to binary data
-                    for (size_t i = 0; i < data_size; i++) {
-                        char byte_str[3] = { hex_data[i * 2], hex_data[i * 2 + 1], '\0' };
-                        data[i] = (unsigned char)strtoul(byte_str, NULL, 16);
-                    }
-                    binary->section_data[shdr_index] = data;
-
-                    // Update sh_size if necessary
-                    if (current_shdr->sh_size != data_size) {
-                        fprintf(stderr, "Warning: sh_size mismatch for section %s. Expected %lu, got %lu bytes of data. Updating sh_size.\n",
-                                binary->section_names[shdr_index], current_shdr->sh_size, data_size);
-                        current_shdr->sh_size = data_size;
-                    }
-                } else {
-                    fprintf(stderr, "Error: sh_data does not start with #hex\"\n");
+                if (field_value[0] != 0) {
+                    fprintf(stderr, "Error: Expected '(sh_data' but got: %s\n", line);
                     exit(EXIT_FAILURE);
                 }
-            }
-        } else if (strcmp(field_name, "sh_data_string") == 0) {
-            if (current_shdr->sh_type == SHT_NOBITS) {
-                fprintf(stderr, "Warning: sh_data_string field for SHT_NOBITS section %s. Ignoring data.\n",
-                        binary->section_names[shdr_index]);
-            } else {
-                size_t value_len = strlen(field_value);
-                if (field_value[0] == '\"' && field_value[value_len - 1] == '\"') {
-                    // Allocate space including null terminator
-                    size_t string_len = value_len - 2;
-                    unsigned char *data = xmalloc(string_len + 1);
-                    memcpy(data, field_value + 1, string_len);
-                    data[string_len] = 0x00; // Append null byte
-                    binary->section_data[shdr_index] = data;
 
-                    // Update sh_size if necessary
-                    if (current_shdr->sh_size != string_len + 1) {
-                        fprintf(stderr, "Warning: sh_size mismatch for section %s. Expected %lu, got %lu bytes of data. Updating sh_size.\n",
-                                binary->section_names[shdr_index], current_shdr->sh_size, string_len + 1);
-                        current_shdr->sh_size = string_len + 1;
-                    }
-                } else {
-                    fprintf(stderr, "Error: Invalid format for sh_data_string: %s\n", field_value);
-                    exit(EXIT_FAILURE);
-                }
+                size_t data_size = 0;
+                unsigned char *data = parse_sh_data(fp, &data_size);
+                binary->section_data[shdr_index] = data;
+                current_shdr->sh_size = data_size;
             }
         } else {
             fprintf(stderr, "Warning: Unknown field '%s' in section header\n", field_name);
