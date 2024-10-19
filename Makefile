@@ -3,10 +3,10 @@ CFLAGS = -Wall -Wextra -pedantic -g3
 
 TARGETS = elf-decode elf-encode
 
-ELF_DECODE_SOURCES = elf_decode.c decoder.c elf_reader.c lisp_writer.c elf.c elf_defaults.c
+ELF_DECODE_SOURCES = elf_decode.c decoder.c elf_reader.c lisp_writer.c elf.c elf_defaults.c common.c
 ELF_DECODE_OBJECTS = $(ELF_DECODE_SOURCES:.c=.o)
 
-ELF_ENCODE_SOURCES = elf_encode.c encoder.c lisp_parser.c elf_writer.c elf.c elf_defaults.c
+ELF_ENCODE_SOURCES = elf_encode.c encoder.c lisp_parser.c elf_writer.c elf.c elf_defaults.c common.c
 ELF_ENCODE_OBJECTS = $(ELF_ENCODE_SOURCES:.c=.o)
 
 HEADERS := $(wildcard *.h)

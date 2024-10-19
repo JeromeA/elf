@@ -1,4 +1,5 @@
 #include "elf_reader.h"
+#include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -41,42 +42,26 @@ static void verify_elf_magic(const Elf64_Ehdr *ehdr) {
 }
 
 static Elf64_Phdr *read_program_headers(const Elf64_Ehdr *ehdr, const void *map) {
-    Elf64_Phdr *phdrs = malloc(sizeof(Elf64_Phdr) * ehdr->e_phnum);
-    if (!phdrs) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    Elf64_Phdr *phdrs = xmalloc(sizeof(Elf64_Phdr) * ehdr->e_phnum);
     memcpy(phdrs, (const char *)map + ehdr->e_phoff, sizeof(Elf64_Phdr) * ehdr->e_phnum);
     return phdrs;
 }
 
 static Elf64_Shdr *read_section_headers(const Elf64_Ehdr *ehdr, const void *map) {
-    Elf64_Shdr *shdrs = malloc(sizeof(Elf64_Shdr) * ehdr->e_shnum);
-    if (!shdrs) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    Elf64_Shdr *shdrs = xmalloc(sizeof(Elf64_Shdr) * ehdr->e_shnum);
     memcpy(shdrs, (const char *)map + ehdr->e_shoff, sizeof(Elf64_Shdr) * ehdr->e_shnum);
     return shdrs;
 }
 
 static char *read_shstrtab(const Elf64_Ehdr *ehdr, const Elf64_Shdr *shdrs, const void *map) {
     Elf64_Shdr shstrtab_hdr = shdrs[ehdr->e_shstrndx];
-    char *shstrtab = malloc(shstrtab_hdr.sh_size);
-    if (!shstrtab) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    char *shstrtab = xmalloc(shstrtab_hdr.sh_size);
     memcpy(shstrtab, (const char *)map + shstrtab_hdr.sh_offset, shstrtab_hdr.sh_size);
     return shstrtab;
 }
 
 static char **read_section_names(size_t shnum, const Elf64_Shdr *shdrs, const char *shstrtab) {
-    char **section_names = malloc(sizeof(char *) * shnum);
-    if (!section_names) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    char **section_names = xmalloc(sizeof(char *) * shnum);
 
     for (size_t i = 0; i < shnum; i++) {
         const char *name = &shstrtab[shdrs[i].sh_name];
@@ -91,20 +76,12 @@ static char **read_section_names(size_t shnum, const Elf64_Shdr *shdrs, const ch
 }
 
 static unsigned char **read_section_data(size_t shnum, const Elf64_Shdr *shdrs, const void *map) {
-    unsigned char **section_data = malloc(sizeof(unsigned char *) * shnum);
-    if (!section_data) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    unsigned char **section_data = xmalloc(sizeof(unsigned char *) * shnum);
 
     for (size_t i = 0; i < shnum; i++) {
         const Elf64_Shdr *shdr = &shdrs[i];
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0) {
-            section_data[i] = malloc(shdr->sh_size);
-            if (!section_data[i]) {
-                perror("malloc");
-                exit(EXIT_FAILURE);
-            }
+            section_data[i] = xmalloc(shdr->sh_size);
             memcpy(section_data[i], (const char *)map + shdr->sh_offset, shdr->sh_size);
         } else {
             section_data[i] = NULL;

@@ -1,4 +1,5 @@
 #include "lisp_parser.h"
+#include "common.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -362,11 +363,7 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
         start++;
     }
     size_t name_len = start - name_start;
-    char *name = malloc(name_len + 1);
-    if (!name) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    char *name = xmalloc(name_len + 1);
     strncpy(name, name_start, name_len);
     name[name_len] = '\0';
 
@@ -393,11 +390,7 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
         }
     }
     size_t value_len = value_end - value_start;
-    char *value = malloc(value_len + 1);
-    if (!value) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    char *value = xmalloc(value_len + 1);
     strncpy(value, value_start, value_len);
     value[value_len] = '\0';
 
@@ -469,11 +462,7 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
                     }
 
                     size_t data_size = hex_len / 2;
-                    unsigned char *data = malloc(data_size);
-                    if (!data) {
-                        perror("malloc");
-                        exit(EXIT_FAILURE);
-                    }
+                    unsigned char *data = xmalloc(data_size);
 
                     // Convert hex string to binary data
                     for (size_t i = 0; i < data_size; i++) {
@@ -502,11 +491,7 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
                 if (field_value[0] == '\"' && field_value[value_len - 1] == '\"') {
                     // Allocate space including null terminator
                     size_t string_len = value_len - 2;
-                    unsigned char *data = malloc(string_len + 1);
-                    if (!data) {
-                        perror("malloc");
-                        exit(EXIT_FAILURE);
-                    }
+                    unsigned char *data = xmalloc(string_len + 1);
                     memcpy(data, field_value + 1, string_len);
                     data[string_len] = 0x00; // Append null byte
                     binary->section_data[shdr_index] = data;
