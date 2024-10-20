@@ -1,5 +1,6 @@
 #include "lisp_writer.h"
 #include "elf_defaults.h"
+#include "elf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -220,9 +221,73 @@ static bool is_string_table(const unsigned char *data, size_t size) {
     return true;
 }
 
-static void output_sh_data_lisp(const unsigned char *data, size_t size, FILE *fp) {
+static void output_notes_lisp(const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
+    size_t pos = 0;
+    while (pos < shdr->sh_size) {
+        // Ensure there's enough data for Elf64_Nhdr
+        if (pos + sizeof(Elf64_Nhdr) > shdr->sh_size) {
+            fprintf(stderr, "Error: Incomplete note header\n");
+            exit(EXIT_FAILURE);
+        }
+
+        Elf64_Nhdr nhdr;
+        memcpy(&nhdr, &data[pos], sizeof(Elf64_Nhdr));
+        pos += sizeof(Elf64_Nhdr);
+
+        // Read name
+        if (pos + nhdr.n_namesz > shdr->sh_size) {
+            fprintf(stderr, "Error: Incomplete note name\n");
+            exit(EXIT_FAILURE);
+        }
+        char *name = malloc(nhdr.n_namesz);
+        if (!name) {
+            perror("malloc");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(name, &data[pos], nhdr.n_namesz);
+        // Ensure null-termination
+        if (name[nhdr.n_namesz - 1] != '\0') {
+            name[nhdr.n_namesz - 1] = '\0';
+        }
+        pos += (nhdr.n_namesz + 3) & ~3; // Align to 4 bytes
+
+        // Read descriptor
+        if (pos + nhdr.n_descsz > shdr->sh_size) {
+            fprintf(stderr, "Error: Incomplete note descriptor\n");
+            free(name);
+            exit(EXIT_FAILURE);
+        }
+        unsigned char *descriptor = malloc(nhdr.n_descsz);
+        if (!descriptor) {
+            perror("malloc");
+            free(name);
+            exit(EXIT_FAILURE);
+        }
+        memcpy(descriptor, &data[pos], nhdr.n_descsz);
+        pos += (nhdr.n_descsz + 3) & ~3; // Align to 4 bytes
+
+        // Output the note
+        fprintf(fp, "          (note\n");
+        fprintf(fp, "            (name \"%s\")\n", name);
+        fprintf(fp, "            (type %u)\n", nhdr.n_type);
+        fprintf(fp, "            (descriptor x");
+        for (size_t i = 0; i < nhdr.n_descsz; i++) {
+            fprintf(fp, "%02X", descriptor[i]);
+        }
+        fprintf(fp, ")\n");
+        fprintf(fp, "          )\n");
+
+        free(name);
+        free(descriptor);
+    }
+}
+
+static void output_sh_data_lisp(const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
+    size_t size = shdr->sh_size;
     fprintf(fp, "      (sh_data\n");
-    if (is_string_table(data, size)) {
+    if (shdr->sh_type == SHT_NOTE) {
+        output_notes_lisp(shdr, data, fp);
+    } else if (is_string_table(data, size)) {
         size_t pos = 0;
         while (pos < size) {
             fprintf(fp, "        (string \"%s\")\n", data + pos);
@@ -231,8 +296,7 @@ static void output_sh_data_lisp(const unsigned char *data, size_t size, FILE *fp
         }
     } else if (is_string(data, size)) {
         fprintf(fp, "        (string \"%s\")\n", data);
-    }
-    else {
+    } else {
         fprintf(fp, "        (binary x");
         for (size_t i = 0; i < size; i++) {
             fprintf(fp, "%02X", data[i]);
@@ -261,7 +325,7 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, c
         fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
         
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
-          output_sh_data_lisp(section_data[i], shdr->sh_size, fp);
+          output_sh_data_lisp(shdr, section_data[i], fp);
         }
         fprintf(fp, "    )\n");
     }
