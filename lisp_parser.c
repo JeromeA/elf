@@ -228,21 +228,13 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
     int phdr_count = 0;
     int phdr_capacity = 4;
 
-    binary->phdrs = calloc(phdr_capacity, sizeof(Elf64_Phdr));
-    if (!binary->phdrs) {
-        perror("calloc");
-        exit(EXIT_FAILURE);
-    }
+    binary->phdrs = xcalloc(phdr_capacity, sizeof(Elf64_Phdr));
 
     while (get_line(fp, &input, &line, &len)) {
         if (strncmp(line, "(program_header", 15) == 0) {
             if (phdr_count == phdr_capacity) {
                 phdr_capacity *= 2;
-                binary->phdrs = realloc(binary->phdrs, sizeof(Elf64_Phdr) * phdr_capacity);
-                if (!binary->phdrs) {
-                    perror("realloc");
-                    exit(EXIT_FAILURE);
-                }
+                binary->phdrs = xrealloc(binary->phdrs, sizeof(Elf64_Phdr) * phdr_capacity);
             }
             Elf64_Phdr *current_phdr = &binary->phdrs[phdr_count];
             memset(current_phdr, 0, sizeof(Elf64_Phdr));
@@ -437,11 +429,7 @@ static unsigned char* parse_sh_data(FILE *fp, size_t *out_size) {
             // Append to data buffer
             if (data_size + str_len > data_capacity) {
                 data_capacity = (data_capacity == 0) ? 64 : data_capacity * 2;
-                data = realloc(data, data_capacity);
-                if (!data) {
-                    perror("realloc");
-                    exit(EXIT_FAILURE);
-                }
+                data = xrealloc(data, data_capacity);
             }
             memcpy(&data[data_size], str, str_len);
             data_size += str_len;
@@ -579,11 +567,7 @@ static unsigned char* parse_notes(FILE *fp, size_t *out_size) {
             while (new_capacity < data_size + total_size) {
                 new_capacity *= 2;
             }
-            data = realloc(data, new_capacity);
-            if (!data) {
-                perror("realloc");
-                exit(EXIT_FAILURE);
-            }
+            data = xrealloc(data, new_capacity);
             data_capacity = new_capacity;
         }
 
@@ -701,13 +685,9 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
     int shdr_count = 0;
     int num_sections = binary->ehdr.e_shnum;
 
-    binary->shdrs = calloc(num_sections, sizeof(Elf64_Shdr));
-    binary->section_names = calloc(num_sections, sizeof(char *));
-    binary->section_data = calloc(num_sections, sizeof(unsigned char *));
-    if (!binary->shdrs || !binary->section_names || !binary->section_data) {
-        perror("calloc");
-        exit(EXIT_FAILURE);
-    }
+    binary->shdrs = xcalloc(num_sections, sizeof(Elf64_Shdr));
+    binary->section_names = xcalloc(num_sections, sizeof(char *));
+    binary->section_data = xcalloc(num_sections, sizeof(unsigned char *));
 
     while (get_line(fp, &input, &line, &len)) {
         if (strncmp(line, "(section_header", 15) == 0) {
