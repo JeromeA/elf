@@ -244,7 +244,13 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
         }
     }
 
-    binary->ehdr.e_phnum = phdr_count;
+    if (binary->ehdr.e_phnum == 0) {
+        binary->ehdr.e_phnum = phdr_count;
+    } else if (binary->ehdr.e_phnum != phdr_count) {
+        fprintf(stderr, "Error: e_phnum mismatch\n");
+        exit(EXIT_FAILURE);
+    }
+
     free(input);
 }
 
@@ -683,27 +689,30 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
     char *line = NULL;
     size_t len = 0;
     int shdr_count = 0;
-    int num_sections = binary->ehdr.e_shnum;
+    int shdr_capacity = 4;
 
-    binary->shdrs = xcalloc(num_sections, sizeof(Elf64_Shdr));
-    binary->section_names = xcalloc(num_sections, sizeof(char *));
-    binary->section_data = xcalloc(num_sections, sizeof(unsigned char *));
+    binary->shdrs = xcalloc(shdr_capacity, sizeof(Elf64_Shdr));
+    binary->section_names = xcalloc(shdr_capacity, sizeof(char *));
+    binary->section_data = xcalloc(shdr_capacity, sizeof(unsigned char *));
 
     while (get_line(fp, &input, &line, &len)) {
         if (strncmp(line, "(section_header", 15) == 0) {
-            if (shdr_count >= num_sections) {
-                fprintf(stderr, "Error: More section headers in Lisp file than specified in e_shnum\n");
-                exit(EXIT_FAILURE);
+            if (shdr_count == shdr_capacity) {
+                shdr_capacity *= 2;
+                binary->shdrs = xrealloc(binary->shdrs, sizeof(Elf64_Shdr) * shdr_capacity);
+                binary->section_names = xrealloc(binary->section_names, sizeof(char *) * shdr_capacity);
+                binary->section_data = xrealloc(binary->section_data, sizeof(unsigned char *) * shdr_capacity);
             }
             parse_section_header(fp, binary, shdr_count);
             shdr_count++;
         }
     }
 
-    if (shdr_count != num_sections) {
-        fprintf(stderr, "Warning: Number of section headers parsed (%d) does not match e_shnum (%d)\n",
-                shdr_count, num_sections);
+    if (binary->ehdr.e_shnum == 0) {
         binary->ehdr.e_shnum = shdr_count;
+    } else if (binary->ehdr.e_shnum != shdr_count) {
+        fprintf(stderr, "Error: e_shnum mismatch\n");
+        exit(EXIT_FAILURE);
     }
 
     free(input);
