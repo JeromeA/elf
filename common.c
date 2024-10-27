@@ -30,3 +30,14 @@ void *xrealloc(void * ptr, size_t size) {
     return ptr;
 }
 
+void *xcrealloc(void * ptr, size_t old_size, size_t new_size) {
+    void *new_ptr = realloc(ptr, new_size);
+    if (new_ptr == NULL) {
+        perror("realloc failed");
+        exit(EXIT_FAILURE);
+    }
+    if (new_size > old_size) {
+        memset((char *)new_ptr + old_size, 0, new_size - old_size);
+    }
+    return new_ptr;
+}

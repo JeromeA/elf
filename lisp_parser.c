@@ -62,13 +62,13 @@ static bool get_line(FILE *fp, char **input, char **line, size_t *len) {
 
         // Trim leading whitespace
         *line = *input;
-        while (isspace((unsigned char)**line)) {
+        while (isspace(**line)) {
             (*line)++;
         }
 
         // Trim trailing whitespace
         char *end = *line + strlen(*line) - 1;
-        while (end >= *line && isspace((unsigned char)*end)) {
+        while (end >= *line && isspace(*end)) {
             *end = '\0';
             end--;
         }
@@ -349,7 +349,7 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
     const char *start = line;
 
     // Skip leading whitespace
-    while (isspace((unsigned char)*start)) {
+    while (isspace(*start)) {
         start++;
     }
 
@@ -362,7 +362,7 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
 
     // Extract field name
     const char *name_start = start;
-    while (*start && !isspace((unsigned char)*start)) {
+    while (*start && !isspace(*start)) {
         start++;
     }
     size_t name_len = start - name_start;
@@ -371,7 +371,7 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
     name[name_len] = '\0';
 
     // Skip whitespace before value
-    while (isspace((unsigned char)*start)) {
+    while (isspace(*start)) {
         start++;
     }
 
@@ -404,141 +404,116 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
     *out_value = value;
 }
 
-static unsigned char* parse_notes(FILE *fp, size_t *out_size) {
-    unsigned char *data = NULL;
-    size_t data_capacity = 0;
-    size_t data_size = 0;
+static char* parse_note(FILE *fp, size_t *out_size) {
     char *input = NULL;
     char *line = NULL;
     size_t len = 0;
 
+    // Initialize note fields
+    char *name = NULL;
+    unsigned char *descriptor = NULL;
+    Elf64_Nhdr nhdr;
+
+    // Parse fields within (note ...)
     while (get_line(fp, &input, &line, &len)) {
-        // Expecting a (note ...) block
-        if (strncmp(line, "(note", 5) != 0) {
-            fprintf(stderr, "Error: Expected '(note' but got: %s\n", line);
-            exit(EXIT_FAILURE);
-        }
+        char *field_name = NULL;
+        char *field_value = NULL;
+        parse_field(line, &field_name, &field_value);
 
-        // Initialize note fields
-        char *name = NULL;
-        Elf64_Word type = 0;
-        unsigned char *descriptor = NULL;
-        size_t descsz = 0;
-
-        // Parse fields within (note ...)
-        while (get_line(fp, &input, &line, &len)) {
-            char *field_name = NULL;
-            char *field_value = NULL;
-            parse_field(line, &field_name, &field_value);
-
-            if (strcmp(field_name, "name") == 0) {
-                size_t value_len = strlen(field_value);
-                if (field_value[0] != '\"' || field_value[value_len - 1] != '\"') {
-                    fprintf(stderr, "Error: Invalid format for note name: %s\n", field_value);
-                    exit(EXIT_FAILURE);
-                }
-                // Allocate and copy name without quotes
-                field_value[value_len - 1] = '\0';
-                name = strdup(field_value + 1);
-                if (!name) {
-                    perror("strdup");
-                    exit(EXIT_FAILURE);
-                }
-            } else if (strcmp(field_name, "type") == 0) {
-                type = (Elf64_Word)atoi(field_value);
-            } else if (strcmp(field_name, "descriptor") == 0) {
-                if (strncmp(field_value, "x", 1) != 0) {
-                    fprintf(stderr, "Error: Descriptor must start with 'x': %s\n", field_value);
-                    exit(EXIT_FAILURE);
-                }
-                const char *hex_str = field_value + 1;
-                size_t hex_len = strlen(hex_str);
-                if (hex_len % 2 != 0) {
-                    fprintf(stderr, "Error: Descriptor hex string length must be even: %s\n", hex_str);
-                    exit(EXIT_FAILURE);
-                }
-                descsz = hex_len / 2;
-                descriptor = xmalloc(descsz);
-                for (size_t i = 0; i < descsz; i++) {
-                    char byte_str[3] = { hex_str[i * 2], hex_str[i * 2 + 1], '\0' };
-                    descriptor[i] = (unsigned char)strtoul(byte_str, NULL, 16);
-                }
-            } else {
-                fprintf(stderr, "Warning: Unknown field '%s' in note\n", field_name);
+        if (strcmp(field_name, "name") == 0) {
+            size_t value_len = strlen(field_value);
+            if (field_value[0] != '\"' || field_value[value_len - 1] != '\"') {
+                fprintf(stderr, "Error: Invalid format for note name: %s\n", field_value);
+                exit(EXIT_FAILURE);
             }
-
-            free(field_name);
-            free(field_value);
-        }
-
-        if (!name) {
-            fprintf(stderr, "Error: Note missing 'name' field\n");
-            exit(EXIT_FAILURE);
-        }
-        if (!descriptor) {
-            fprintf(stderr, "Error: Note missing 'descriptor' field\n");
-            exit(EXIT_FAILURE);
-        }
-
-        // Prepare Elf64_Nhdr
-        Elf64_Nhdr nhdr;
-        nhdr.n_namesz = strlen(name) + 1;
-        nhdr.n_descsz = descsz;
-        nhdr.n_type = type;
-
-        // Calculate padding
-        size_t name_padding = (4 - (nhdr.n_namesz % 4)) % 4;
-        size_t desc_padding = (4 - (nhdr.n_descsz % 4)) % 4;
-
-        // Calculate total size for the note
-        size_t total_size = sizeof(Elf64_Nhdr) + nhdr.n_namesz + name_padding + nhdr.n_descsz + desc_padding;
-
-        // Ensure data buffer has enough space
-        if (data_size + total_size > data_capacity) {
-            size_t new_capacity = data_capacity ? data_capacity * 2 : 128;
-            while (new_capacity < data_size + total_size) {
-                new_capacity *= 2;
+            // Allocate and copy name without quotes
+            nhdr.n_namesz = value_len - 1;
+            field_value[value_len - 1] = '\0';
+            name = strdup(field_value + 1);
+            if (!name) {
+                perror("strdup");
+                exit(EXIT_FAILURE);
             }
-            data = xrealloc(data, new_capacity);
-            data_capacity = new_capacity;
+        } else if (strcmp(field_name, "type") == 0) {
+            nhdr.n_type = (Elf64_Word)atoi(field_value);
+        } else if (strcmp(field_name, "descriptor") == 0) {
+            if (strncmp(field_value, "x", 1) != 0) {
+                fprintf(stderr, "Error: Descriptor must start with 'x': %s\n", field_value);
+                exit(EXIT_FAILURE);
+            }
+            const char *hex_str = field_value + 1;
+            size_t hex_len = strlen(hex_str);
+            if (hex_len % 2 != 0) {
+                fprintf(stderr, "Error: Descriptor hex string length must be even: %s\n", hex_str);
+                exit(EXIT_FAILURE);
+            }
+            nhdr.n_descsz = hex_len/2;
+            descriptor = xmalloc(nhdr.n_descsz);
+            for (size_t i = 0; i < nhdr.n_descsz; i++) {
+                char byte_str[3] = { hex_str[i * 2], hex_str[i * 2 + 1], '\0' };
+                descriptor[i] = (unsigned char)strtoul(byte_str, NULL, 16);
+            }
+        } else {
+            fprintf(stderr, "Error: Unknown field '%s' in note\n", field_name);
+            exit(EXIT_FAILURE);
         }
 
-        // Append nhdr
-        memcpy(&data[data_size], &nhdr, sizeof(Elf64_Nhdr));
-        data_size += sizeof(Elf64_Nhdr);
-
-        // Append name
-        memcpy(&data[data_size], name, nhdr.n_namesz);
-        data_size += nhdr.n_namesz;
-        // Append padding
-        for (size_t i = 0; i < name_padding; i++) {
-            data[data_size++] = 0x00;
-        }
-
-        // Append descriptor
-        memcpy(&data[data_size], descriptor, nhdr.n_descsz);
-        data_size += nhdr.n_descsz;
-        // Append padding
-        for (size_t i = 0; i < desc_padding; i++) {
-            data[data_size++] = 0x00;
-        }
-
-        free(name);
-        free(descriptor);
+        free(field_name);
+        free(field_value);
     }
-    free(input);
 
+    if (!name) {
+        fprintf(stderr, "Error: Note missing 'name' field\n");
+        exit(EXIT_FAILURE);
+    }
+    if (!descriptor) {
+        fprintf(stderr, "Error: Note missing 'descriptor' field\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Calculate padding
+    size_t name_padding = (4 - (nhdr.n_namesz % 4)) % 4;
+    size_t desc_padding = (4 - (nhdr.n_descsz % 4)) % 4;
+
+    // Calculate total size for the note
+    size_t total_size = sizeof(Elf64_Nhdr) + nhdr.n_namesz + name_padding + nhdr.n_descsz + desc_padding;
+    size_t data_size = 0;
+    char *data = xmalloc(total_size);
+
+    // Append nhdr
+    memcpy(data, &nhdr, sizeof(Elf64_Nhdr));
+    data_size += sizeof(Elf64_Nhdr);
+
+    // Append name
+    memcpy(data + data_size, name, nhdr.n_namesz);
+    data_size += nhdr.n_namesz;
+    // Append padding
+    for (size_t i = 0; i < name_padding; i++) {
+        data[data_size++] = 0x00;
+    }
+
+    // Append descriptor
+    memcpy(data + data_size, descriptor, nhdr.n_descsz);
+    data_size += nhdr.n_descsz;
+    // Append padding
+    for (size_t i = 0; i < desc_padding; i++) {
+        data[data_size++] = 0x00;
+    }
+
+    free(name);
+    free(descriptor);
+
+    free(input);
     *out_size = data_size;
     return data;
 }
 
 static unsigned char* parse_data(FILE *fp, size_t *out_size) {
     unsigned char *data = NULL;
+    size_t data_size = 0;
     char *input = NULL;
     char *line = NULL;
     size_t len = 0;
-    size_t data_capacity = 0;
-    size_t data_size = 0;
 
     while (get_line(fp, &input, &line, &len)) {
         char *attr_name = NULL;
@@ -546,30 +521,18 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
         parse_field(line, &attr_name, &attr_value);
 
         if (strcmp(attr_name, "string") == 0) {
-            // Extract the string without quotes
             size_t value_len = strlen(attr_value);
             if (attr_value[0] != '\"' || attr_value[value_len - 1] != '\"') {
                 fprintf(stderr, "Error: Invalid format for string attribute: %s\n", attr_value);
                 exit(EXIT_FAILURE);
             }
             attr_value[value_len - 1] = '\0';
-            char *str = strdup(attr_value + 1);
-            if (!str) {
-                perror("strdup");
-                exit(EXIT_FAILURE);
-            }
-            size_t str_len = strlen(str) + 1; // Include null terminator
+            size_t str_len = value_len - 1; // Include null terminator, but not the quotes.
 
-            // Append to data buffer
-            if (data_size + str_len > data_capacity) {
-                data_capacity = (data_capacity == 0) ? 64 : data_capacity * 2;
-                data = xrealloc(data, data_capacity);
-            }
-            memcpy(&data[data_size], str, str_len);
+            data = xrealloc(data, data_size + str_len);
+            memcpy(data + data_size, attr_value + 1, str_len);
             data_size += str_len;
-            free(str);
         } else if (strcmp(attr_name, "binary") == 0) {
-            // Expecting binary data in the format x20404F4F0012
             if (strncmp(attr_value, "x", 1) != 0) {
                 fprintf(stderr, "Error: Invalid format for binary attribute: %s\n", attr_value);
                 exit(EXIT_FAILURE);
@@ -581,17 +544,19 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
                 exit(EXIT_FAILURE);
             }
             size_t bin_len = hex_len / 2;
-            unsigned char *bin_data = xmalloc(bin_len);
+            data = xrealloc(data, data_size + bin_len);
             for (size_t i = 0; i < bin_len; i++) {
                 char byte_str[3] = { hex_str[i * 2], hex_str[i * 2 + 1], '\0' };
-                bin_data[i] = (unsigned char)strtoul(byte_str, NULL, 16);
+                data[data_size + i] = (unsigned char)strtoul(byte_str, NULL, 16);
             }
-
-            // Replace existing data
-            free(data);
-            data = bin_data;
-            data_size = bin_len;
-            data_capacity = bin_len;
+            data_size += bin_len;
+        } else if (strcmp(attr_name, "note") == 0) {
+            size_t block_size;
+            char *block = parse_note(fp, &block_size);
+            data = xrealloc(data, data_size + block_size);
+            memcpy(data + data_size, block, block_size);
+            data_size += block_size;
+            free(block);
         } else {
             fprintf(stderr, "Error: Unknown attribute '%s' in sh_data\n", attr_name);
             exit(EXIT_FAILURE);
@@ -665,11 +630,7 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
                 unsigned char *data = NULL;
                 size_t data_size = 0;
 
-                if (current_shdr->sh_type == SHT_NOTE) {
-                    data = parse_notes(fp, &data_size);
-                } else {
-                    data = parse_data(fp, &data_size);
-                }
+                data = parse_data(fp, &data_size);
 
                 binary->section_data[shdr_index] = data;
                 current_shdr->sh_size = data_size;
@@ -698,10 +659,10 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
     while (get_line(fp, &input, &line, &len)) {
         if (strncmp(line, "(section_header", 15) == 0) {
             if (shdr_count == shdr_capacity) {
+                binary->shdrs = xcrealloc(binary->shdrs, sizeof(Elf64_Shdr) * shdr_capacity, sizeof(Elf64_Shdr) * shdr_capacity * 2);
+                binary->section_names = xcrealloc(binary->section_names, sizeof(char *) * shdr_capacity, sizeof(char *) * shdr_capacity * 2);
+                binary->section_data = xcrealloc(binary->section_data, sizeof(unsigned char *) * shdr_capacity, sizeof(unsigned char *) * shdr_capacity * 2);
                 shdr_capacity *= 2;
-                binary->shdrs = xrealloc(binary->shdrs, sizeof(Elf64_Shdr) * shdr_capacity);
-                binary->section_names = xrealloc(binary->section_names, sizeof(char *) * shdr_capacity);
-                binary->section_data = xrealloc(binary->section_data, sizeof(unsigned char *) * shdr_capacity);
             }
             parse_section_header(fp, binary, shdr_count);
             shdr_count++;
