@@ -617,7 +617,7 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
             current_shdr->sh_addralign = strtoul(field_value, NULL, 0);
         } else if (strcmp(field_name, "sh_entsize") == 0) {
             current_shdr->sh_entsize = strtoul(field_value, NULL, 0);
-        } else if (strcmp(field_name, "sh_data") == 0) {
+        } else if (strcmp(field_name, "data") == 0) {
             if (current_shdr->sh_type == SHT_NOBITS) {
                 fprintf(stderr, "Error: sh_data field for SHT_NOBITS section %s.\n", binary->section_names[shdr_index]);
                 exit(EXIT_FAILURE);

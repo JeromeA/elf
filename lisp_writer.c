@@ -282,9 +282,9 @@ static void output_notes_lisp(const Elf64_Shdr *shdr, const unsigned char *data,
     }
 }
 
-static void output_sh_data_lisp(const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
+static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
     size_t size = shdr->sh_size;
-    fprintf(fp, "      (sh_data\n");
+    fprintf(fp, "      (data\n");
     if (shdr->sh_type == SHT_NOTE) {
         output_notes_lisp(shdr, data, fp);
     } else if (is_string_table(data, size)) {
@@ -325,7 +325,7 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, c
         fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
         
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
-          output_sh_data_lisp(shdr, section_data[i], fp);
+          output_data(shdr, section_data[i], fp);
         }
         fprintf(fp, "    )\n");
     }
