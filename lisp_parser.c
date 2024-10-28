@@ -404,7 +404,7 @@ static void parse_field(const char *line, char **out_name, char **out_value) {
     *out_value = value;
 }
 
-static char* parse_note(FILE *fp, size_t *out_size) {
+static unsigned char* parse_note(FILE *fp, size_t *out_size) {
     char *input = NULL;
     char *line = NULL;
     size_t len = 0;
@@ -478,7 +478,7 @@ static char* parse_note(FILE *fp, size_t *out_size) {
     // Calculate total size for the note
     size_t total_size = sizeof(Elf64_Nhdr) + nhdr.n_namesz + name_padding + nhdr.n_descsz + desc_padding;
     size_t data_size = 0;
-    char *data = xmalloc(total_size);
+    unsigned char *data = xmalloc(total_size);
 
     // Append nhdr
     memcpy(data, &nhdr, sizeof(Elf64_Nhdr));
@@ -558,6 +558,42 @@ static unsigned char* parse_symbol(FILE *fp, size_t *out_size) {
     return data;
 }
 
+static unsigned char* parse_binary(const char *attr_value, size_t *out_size) {
+    if (strncmp(attr_value, "x", 1) != 0) {
+        fprintf(stderr, "Error: Invalid format for binary attribute: %s\n", attr_value);
+        exit(EXIT_FAILURE);
+    }
+    const char *hex_str = attr_value + 1;
+    size_t hex_len = strlen(hex_str);
+    if (hex_len % 2 != 0) {
+        fprintf(stderr, "Error: Binary hex string length must be even: %s\n", hex_str);
+        exit(EXIT_FAILURE);
+    }
+    size_t bin_len = hex_len / 2;
+    unsigned char *data = xmalloc(bin_len);
+    for (size_t i = 0; i < bin_len; i++) {
+        char byte_str[3] = { hex_str[i * 2], hex_str[i * 2 + 1], '\0' };
+        data[i] = (unsigned char)strtoul(byte_str, NULL, 16);
+    }
+    *out_size = bin_len;
+    return data;
+}
+
+static unsigned char* parse_string(const char *attr_value, size_t *out_size) {
+    size_t value_len = strlen(attr_value);
+    if (attr_value[0] != '\"' || attr_value[value_len - 1] != '\"') {
+        fprintf(stderr, "Error: Invalid format for string attribute: %s\n", attr_value);
+        exit(EXIT_FAILURE);
+    }
+    // Exclude the starting and ending quotes
+    size_t str_len = value_len - 2;
+    unsigned char *data = xmalloc(str_len + 1);
+    memcpy(data, attr_value + 1, str_len);
+    data[str_len] = 0;
+    *out_size = str_len + 1;
+    return data;
+}
+
 static unsigned char* parse_data(FILE *fp, size_t *out_size) {
     unsigned char *data = NULL;
     size_t data_size = 0;
@@ -570,54 +606,26 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
         char *attr_value = NULL;
         parse_field(line, &attr_name, &attr_value);
 
-        if (strcmp(attr_name, "string") == 0) {
-            size_t value_len = strlen(attr_value);
-            if (attr_value[0] != '\"' || attr_value[value_len - 1] != '\"') {
-                fprintf(stderr, "Error: Invalid format for string attribute: %s\n", attr_value);
-                exit(EXIT_FAILURE);
-            }
-            attr_value[value_len - 1] = '\0';
-            size_t str_len = value_len - 1; // Include null terminator, but not the quotes.
+        unsigned char *block = NULL;
+        size_t block_size = 0;
 
-            data = xrealloc(data, data_size + str_len);
-            memcpy(data + data_size, attr_value + 1, str_len);
-            data_size += str_len;
+        if (strcmp(attr_name, "string") == 0) {
+            block = parse_string(attr_value, &block_size);
         } else if (strcmp(attr_name, "binary") == 0) {
-            if (strncmp(attr_value, "x", 1) != 0) {
-                fprintf(stderr, "Error: Invalid format for binary attribute: %s\n", attr_value);
-                exit(EXIT_FAILURE);
-            }
-            const char *hex_str = attr_value + 1;
-            size_t hex_len = strlen(hex_str);
-            if (hex_len % 2 != 0) {
-                fprintf(stderr, "Error: Binary hex string length must be even: %s\n", hex_str);
-                exit(EXIT_FAILURE);
-            }
-            size_t bin_len = hex_len / 2;
-            data = xrealloc(data, data_size + bin_len);
-            for (size_t i = 0; i < bin_len; i++) {
-                char byte_str[3] = { hex_str[i * 2], hex_str[i * 2 + 1], '\0' };
-                data[data_size + i] = (unsigned char)strtoul(byte_str, NULL, 16);
-            }
-            data_size += bin_len;
+            block = parse_binary(attr_value, &block_size);
         } else if (strcmp(attr_name, "note") == 0) {
-            size_t block_size;
-            char *block = parse_note(fp, &block_size);
-            data = xrealloc(data, data_size + block_size);
-            memcpy(data + data_size, block, block_size);
-            data_size += block_size;
-            free(block);
+            block = parse_note(fp, &block_size);
         } else if (strcmp(attr_name, "symbol") == 0) {
-            size_t block_size;
-            unsigned char *block = parse_symbol(fp, &block_size);
-            data = xrealloc(data, data_size + block_size);
-            memcpy(data + data_size, block, block_size);
-            data_size += block_size;
-            free(block);
+            block = parse_symbol(fp, &block_size);
         } else {
             fprintf(stderr, "Error: Unknown attribute '%s' in sh_data\n", attr_name);
             exit(EXIT_FAILURE);
         }
+
+        data = xrealloc(data, data_size + block_size);
+        memcpy(data + data_size, block, block_size);
+        data_size += block_size;
+        free(block);
 
         free(attr_name);
         free(attr_value);
