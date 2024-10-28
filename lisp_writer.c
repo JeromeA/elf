@@ -282,11 +282,35 @@ static void output_notes_lisp(const Elf64_Shdr *shdr, const unsigned char *data,
     }
 }
 
-static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
+static void output_symbols_lisp(const ElfBinary *binary, const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
+    size_t entry_count = shdr->sh_size / shdr->sh_entsize;
+    const Elf64_Sym *symtab = (const Elf64_Sym *)data;
+
+    Elf64_Word strtab_index = shdr->sh_link;
+    const unsigned char *strtab = binary->section_data[strtab_index];
+
+    for (size_t i = 0; i < entry_count; i++) {
+        const Elf64_Sym *sym = &symtab[i];
+        const char *name = (const char *)&strtab[sym->st_name];
+        fprintf(fp, "        (symbol\n");
+        fprintf(fp, "          (st_name %u)\n", sym->st_name);
+        fprintf(fp, "          (st_name_str \"%s\")\n", name);
+        fprintf(fp, "          (st_info %u)\n", sym->st_info);
+        fprintf(fp, "          (st_other %u)\n", sym->st_other);
+        fprintf(fp, "          (st_shndx %u)\n", sym->st_shndx);
+        fprintf(fp, "          (st_value 0x%lx)\n", sym->st_value);
+        fprintf(fp, "          (st_size %lu)\n", sym->st_size);
+        fprintf(fp, "        )\n");
+    }
+}
+
+static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const ElfBinary *binary, FILE *fp) {
     size_t size = shdr->sh_size;
     fprintf(fp, "      (data\n");
     if (shdr->sh_type == SHT_NOTE) {
         output_notes_lisp(shdr, data, fp);
+    } else if (shdr->sh_type == SHT_SYMTAB) {
+        output_symbols_lisp(binary, shdr, data, fp);
     } else if (is_string_table(data, size)) {
         size_t pos = 0;
         while (pos < size) {
@@ -306,7 +330,7 @@ static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, FILE 
     fprintf(fp, "      )\n");
 }
 
-static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, FILE *fp) {
+static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "  (section_headers\n");
     for (size_t i = 0; i < shnum; i++) {
         const Elf64_Shdr *shdr = &shdrs[i];
@@ -325,7 +349,7 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, c
         fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
         
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
-          output_data(shdr, section_data[i], fp);
+          output_data(shdr, section_data[i], binary, fp);
         }
         fprintf(fp, "    )\n");
     }
@@ -342,7 +366,7 @@ void output_lisp_representation(const ElfBinary *binary, const char *output_file
     fprintf(fp, "(elf_binary\n");
     output_elf_header_lisp(binary, fp);
     output_program_headers_lisp(binary->ehdr.e_phnum, binary->phdrs, fp);
-    output_section_headers_lisp(binary->ehdr.e_shnum, binary->shdrs, binary->section_names, binary->section_data, fp);
+    output_section_headers_lisp(binary->ehdr.e_shnum, binary->shdrs, binary->section_names, binary->section_data, binary, fp);
 
     fprintf(fp, ")\n");
 

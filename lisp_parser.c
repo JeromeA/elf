@@ -508,6 +508,56 @@ static char* parse_note(FILE *fp, size_t *out_size) {
     return data;
 }
 
+static unsigned char* parse_symbol(FILE *fp, size_t *out_size) {
+    Elf64_Sym sym;
+    memset(&sym, 0, sizeof(Elf64_Sym));
+
+    char *input = NULL;
+    char *line = NULL;
+    size_t len = 0;
+
+    while (get_line(fp, &input, &line, &len)) {
+        // Check for closing parenthesis
+        if (strcmp(line, ")") == 0) {
+            break;
+        }
+
+        char *field_name = NULL;
+        char *field_value = NULL;
+        parse_field(line, &field_name, &field_value);
+
+        if (strcmp(field_name, "st_name") == 0) {
+            sym.st_name = (Elf64_Word)strtoul(field_value, NULL, 0);
+        } else if (strcmp(field_name, "st_info") == 0) {
+            sym.st_info = (unsigned char)strtoul(field_value, NULL, 0);
+        } else if (strcmp(field_name, "st_other") == 0) {
+            sym.st_other = (unsigned char)strtoul(field_value, NULL, 0);
+        } else if (strcmp(field_name, "st_shndx") == 0) {
+            sym.st_shndx = (Elf64_Half)strtoul(field_value, NULL, 0);
+        } else if (strcmp(field_name, "st_value") == 0) {
+            sym.st_value = (Elf64_Addr)strtoull(field_value, NULL, 0);
+        } else if (strcmp(field_name, "st_size") == 0) {
+            sym.st_size = (Elf64_Xword)strtoull(field_value, NULL, 0);
+        } else if (strcmp(field_name, "st_name_str") == 0) {
+            // Ignored.
+        } else {
+            fprintf(stderr, "Unknown symbol field '%s'\n", field_name);
+            exit(EXIT_FAILURE);
+        }
+
+        free(field_name);
+        free(field_value);
+    }
+
+    free(input);
+
+    // Return the symbol as a data block
+    unsigned char *data = xmalloc(sizeof(Elf64_Sym));
+    memcpy(data, &sym, sizeof(Elf64_Sym));
+    *out_size = sizeof(Elf64_Sym);
+    return data;
+}
+
 static unsigned char* parse_data(FILE *fp, size_t *out_size) {
     unsigned char *data = NULL;
     size_t data_size = 0;
@@ -553,6 +603,13 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
         } else if (strcmp(attr_name, "note") == 0) {
             size_t block_size;
             char *block = parse_note(fp, &block_size);
+            data = xrealloc(data, data_size + block_size);
+            memcpy(data + data_size, block, block_size);
+            data_size += block_size;
+            free(block);
+        } else if (strcmp(attr_name, "symbol") == 0) {
+            size_t block_size;
+            unsigned char *block = parse_symbol(fp, &block_size);
             data = xrealloc(data, data_size + block_size);
             memcpy(data + data_size, block, block_size);
             data_size += block_size;
