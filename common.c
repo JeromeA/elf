@@ -2,6 +2,7 @@
 #include "common.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 void* xmalloc(size_t size) {
     void* ptr = malloc(size);
