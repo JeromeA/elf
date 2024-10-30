@@ -330,6 +330,11 @@ static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const
     fprintf(fp, "      )\n");
 }
 
+static bool is_sh_size_implicit(const Elf64_Shdr *shdr, unsigned char *section_data) {
+    if (section_data) return true;
+    return shdr->sh_size == 0;
+}
+
 static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "  (section_headers\n");
     for (size_t i = 0; i < shnum; i++) {
@@ -342,7 +347,7 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, c
         fprintf(fp, "      (sh_flags %s)\n", get_sh_flags_string(shdr->sh_flags));
         fprintf(fp, "      (sh_addr 0x%lx)\n", shdr->sh_addr);
         fprintf(fp, "      (sh_offset %lu)\n", shdr->sh_offset);
-        fprintf(fp, "      %s(sh_size %lu)\n", shdr->sh_type != SHT_NOBITS && section_data[i] ? ";": "", shdr->sh_size);
+        fprintf(fp, "      %s(sh_size %lu)\n", is_sh_size_implicit(shdr, section_data[i]) ? ";": "", shdr->sh_size);
         fprintf(fp, "      (sh_link %u)\n", shdr->sh_link);
         fprintf(fp, "      (sh_info %u)\n", shdr->sh_info);
         fprintf(fp, "      (sh_addralign %lu)\n", shdr->sh_addralign);
