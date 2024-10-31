@@ -641,6 +641,7 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
     char *line = NULL;
     size_t len = 0;
     Elf64_Shdr *current_shdr = &binary->shdrs[shdr_index];
+    current_shdr->sh_offset = (Elf64_Off)(-1); // Sentinel value indicating missing sh_offset
 
     while (get_line(fp, &input, &line, &len)) {
         // Parse the field
