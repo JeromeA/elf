@@ -517,11 +517,6 @@ static unsigned char* parse_symbol(FILE *fp, size_t *out_size) {
     size_t len = 0;
 
     while (get_line(fp, &input, &line, &len)) {
-        // Check for closing parenthesis
-        if (strcmp(line, ")") == 0) {
-            break;
-        }
-
         char *field_name = NULL;
         char *field_value = NULL;
         parse_field(line, &field_name, &field_value);
@@ -594,6 +589,53 @@ static unsigned char* parse_string(const char *attr_value, size_t *out_size) {
     return data;
 }
 
+static unsigned char* parse_relocation(FILE *fp, size_t *out_size) {
+    char *input = NULL;
+    char *line = NULL;
+    size_t len = 0;
+    Elf64_Addr offset = 0;
+    Elf64_Xword symbol_index = 0;
+    Elf64_Word relocation_type = 0;
+    Elf64_Sxword addend = 0;
+    bool is_rela = false;
+
+    while (get_line(fp, &input, &line, &len)) {
+        char *field_name = NULL;
+        char *field_value = NULL;
+        parse_field(line, &field_name, &field_value);
+        if (strcmp(field_name, "offset") == 0) {
+            offset = strtoull(field_value, NULL, 0);
+        } else if (strcmp(field_name, "symbol_index") == 0) {
+            symbol_index = strtoull(field_value, NULL, 0);
+        } else if (strcmp(field_name, "relocation_type") == 0) {
+            relocation_type = strtoul(field_value, NULL, 0);
+        } else if (strcmp(field_name, "addend") == 0) {
+            addend = strtoll(field_value, NULL, 0);
+            is_rela = true;
+        } else {
+            fprintf(stderr, "Unknown relocation field '%s'\n", field_name);
+            exit(EXIT_FAILURE);
+        }
+        free(field_name);
+        free(field_value);
+    }
+    Elf64_Xword info = ELF64_R_INFO(symbol_index, relocation_type);
+    if (is_rela) {
+        Elf64_Rela *rela = xmalloc(sizeof(Elf64_Rela));
+        rela->r_offset = offset;
+        rela->r_info = info;
+        rela->r_addend = addend;
+        *out_size = sizeof(Elf64_Rela);
+        return (unsigned char *)rela;
+    } else {
+        Elf64_Rel *rel = xmalloc(sizeof(Elf64_Rel));
+        rel->r_offset = offset;
+        rel->r_info = info;
+        *out_size = sizeof(Elf64_Rel);
+        return (unsigned char *)rel;
+    }
+}
+
 static unsigned char* parse_data(FILE *fp, size_t *out_size) {
     unsigned char *data = NULL;
     size_t data_size = 0;
@@ -615,6 +657,8 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
             block = parse_binary(attr_value, &block_size);
         } else if (strcmp(attr_name, "note") == 0) {
             block = parse_note(fp, &block_size);
+        } else if (strcmp(attr_name, "relocation") == 0) {
+            block = parse_relocation(fp, &block_size);
         } else if (strcmp(attr_name, "symbol") == 0) {
             block = parse_symbol(fp, &block_size);
         } else {

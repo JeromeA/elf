@@ -304,6 +304,32 @@ static void output_symbols_lisp(const ElfBinary *binary, const Elf64_Shdr *shdr,
     }
 }
 
+static void output_relocations_lisp(const Elf64_Shdr *shdr, const unsigned char *data, bool is_rela, FILE *fp) {
+    size_t entry_count = shdr->sh_size / shdr->sh_entsize;
+    for (size_t i = 0; i < entry_count; i++) {
+        if (is_rela) {
+            const Elf64_Rela *rela = (const Elf64_Rela *)&data[i * sizeof(Elf64_Rela)];
+            Elf64_Xword symbol_index = ELF64_R_SYM(rela->r_info);
+            Elf64_Word relocation_type = ELF64_R_TYPE(rela->r_info);
+            fprintf(fp, "        (relocation\n");
+            fprintf(fp, "          (offset 0x%lx)\n", rela->r_offset);
+            fprintf(fp, "          (symbol_index %lu)\n", symbol_index);
+            fprintf(fp, "          (relocation_type %u)\n", relocation_type);
+            fprintf(fp, "          (addend %ld)\n", rela->r_addend);
+            fprintf(fp, "        )\n");
+        } else {
+            const Elf64_Rel *rel = (const Elf64_Rel *)&data[i * sizeof(Elf64_Rel)];
+            Elf64_Xword symbol_index = ELF64_R_SYM(rel->r_info);
+            Elf64_Word relocation_type = ELF64_R_TYPE(rel->r_info);
+            fprintf(fp, "        (relocation\n");
+            fprintf(fp, "          (offset 0x%lx)\n", rel->r_offset);
+            fprintf(fp, "          (symbol_index %lu)\n", symbol_index);
+            fprintf(fp, "          (relocation_type %u)\n", relocation_type);
+            fprintf(fp, "        )\n");
+        }
+    }
+}
+
 static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const ElfBinary *binary, FILE *fp) {
     size_t size = shdr->sh_size;
     fprintf(fp, "      (data\n");
@@ -311,6 +337,8 @@ static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const
         output_notes_lisp(shdr, data, fp);
     } else if (shdr->sh_type == SHT_SYMTAB) {
         output_symbols_lisp(binary, shdr, data, fp);
+    } else if (shdr->sh_type == SHT_REL || shdr->sh_type == SHT_RELA) {
+        output_relocations_lisp(shdr, data, shdr->sh_type == SHT_RELA, fp);
     } else if (is_string_table(data, size)) {
         size_t pos = 0;
         while (pos < size) {
