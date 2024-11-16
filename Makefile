@@ -31,3 +31,11 @@ paste:
 		cat $$file >> paste_code.txt; \
 		echo "" >> paste_code.txt; \
 	done
+
+mat: all
+	./elf-decode elf-decode t.lisp
+	@echo "--> Successful decode"
+	./elf-encode t.lisp t.elf
+	@echo "--> Successful encode"
+	cmp -l elf-decode t.elf
+	@echo "--> Successful cmp"
