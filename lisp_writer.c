@@ -363,14 +363,14 @@ static bool is_sh_size_implicit(const Elf64_Shdr *shdr, unsigned char *section_d
     return shdr->sh_size == 0;
 }
 
-static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, char **section_names, unsigned char **section_data, const ElfBinary *binary, FILE *fp) {
+static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, unsigned char **section_data, const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "  (section_headers\n");
     for (size_t i = 0; i < shnum; i++) {
         const Elf64_Shdr *shdr = &shdrs[i];
-        const char *section_name = section_names[i];
+        const char *section_name = get_section_name(binary, shdr);
         fprintf(fp, "    (section_header\n");
         fprintf(fp, "      (sh_name %u)\n", shdr->sh_name);
-        fprintf(fp, "      (sh_name_str \"%s\")\n", section_name); // Output section name for readability
+        fprintf(fp, "      (sh_name_str \"%s\")\n", section_name);
         fprintf(fp, "      (sh_type %s)\n", get_sh_type_string(shdr->sh_type));
         fprintf(fp, "      (sh_flags %s)\n", get_sh_flags_string(shdr->sh_flags));
         fprintf(fp, "      (sh_addr 0x%lx)\n", shdr->sh_addr);
@@ -399,7 +399,7 @@ void output_lisp_representation(const ElfBinary *binary, const char *output_file
     fprintf(fp, "(elf_binary\n");
     output_elf_header_lisp(binary, fp);
     output_program_headers_lisp(binary->ehdr.e_phnum, binary->phdrs, fp);
-    output_section_headers_lisp(binary->ehdr.e_shnum, binary->shdrs, binary->section_names, binary->section_data, binary, fp);
+    output_section_headers_lisp(binary->ehdr.e_shnum, binary->shdrs, binary->section_data, binary, fp);
 
     fprintf(fp, ")\n");
 

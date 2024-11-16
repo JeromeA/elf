@@ -700,11 +700,9 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
             size_t value_len = strlen(field_value);
             if (field_value[0] == '\"' && field_value[value_len - 1] == '\"') {
                 field_value[value_len - 1] = '\0';
-                binary->section_names[shdr_index] = strdup(field_value + 1);
-                if (!binary->section_names[shdr_index]) {
-                    perror("strdup");
-                    exit(EXIT_FAILURE);
-                }
+                // TODO: store strdup(field_value + 1) to:
+                // - compare with what sh_name points to,
+                // - generate the section strings if they don't exist.
             } else {
                 fprintf(stderr, "Error: Invalid format for sh_name_str: %s\n", field_value);
                 exit(EXIT_FAILURE);
@@ -729,7 +727,7 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
             current_shdr->sh_entsize = strtoul(field_value, NULL, 0);
         } else if (strcmp(field_name, "data") == 0) {
             if (current_shdr->sh_type == SHT_NOBITS) {
-                fprintf(stderr, "Error: sh_data field for SHT_NOBITS section %s.\n", binary->section_names[shdr_index]);
+                fprintf(stderr, "Error: sh_data field for SHT_NOBITS section %d.\n", shdr_index);
                 exit(EXIT_FAILURE);
             } else {
                 if (field_value[0] != 0) {
@@ -763,14 +761,12 @@ static void parse_section_headers(FILE *fp, ElfBinary *binary) {
     int shdr_capacity = 4;
 
     binary->shdrs = xcalloc(shdr_capacity, sizeof(Elf64_Shdr));
-    binary->section_names = xcalloc(shdr_capacity, sizeof(char *));
     binary->section_data = xcalloc(shdr_capacity, sizeof(unsigned char *));
 
     while (get_line(fp, &input, &line, &len)) {
         if (strncmp(line, "(section_header", 15) == 0) {
             if (shdr_count == shdr_capacity) {
                 binary->shdrs = xcrealloc(binary->shdrs, sizeof(Elf64_Shdr) * shdr_capacity, sizeof(Elf64_Shdr) * shdr_capacity * 2);
-                binary->section_names = xcrealloc(binary->section_names, sizeof(char *) * shdr_capacity, sizeof(char *) * shdr_capacity * 2);
                 binary->section_data = xcrealloc(binary->section_data, sizeof(unsigned char *) * shdr_capacity, sizeof(unsigned char *) * shdr_capacity * 2);
                 shdr_capacity *= 2;
             }
