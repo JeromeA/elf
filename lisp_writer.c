@@ -373,7 +373,7 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, u
         fprintf(fp, "      (sh_name_str \"%s\")\n", section_name);
         fprintf(fp, "      (sh_type %s)\n", get_sh_type_string(shdr->sh_type));
         fprintf(fp, "      (sh_flags %s)\n", get_sh_flags_string(shdr->sh_flags));
-        fprintf(fp, "      (sh_addr 0x%lx)\n", shdr->sh_addr);
+        fprintf(fp, "      %s(sh_addr 0x%lx)\n", is_default_section_addr(binary, i, shdr->sh_addr) ? ";" : "", shdr->sh_addr);
         fprintf(fp, "      %s(sh_offset %lu)\n", is_default_section_offset(binary, i, shdr->sh_offset) ? ";" : "", shdr->sh_offset);
         fprintf(fp, "      %s(sh_size %lu)\n", is_sh_size_implicit(shdr, section_data[i]) ? ";" : "", shdr->sh_size);
         fprintf(fp, "      (sh_link %u)\n", shdr->sh_link);

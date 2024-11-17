@@ -15,7 +15,8 @@ static bool is_file_only_section(const ElfBinary *binary, const Elf64_Shdr *shdr
     return false;
 }
 
-Elf64_Off get_default_section_offset(const ElfBinary *binary, int target_segnum) {
+static Elf64_Off
+get_default_section_offset(const ElfBinary *binary, int target_segnum) {
     Elf64_Off current_offset = binary->ehdr.e_ehsize + binary->ehdr.e_phnum * binary->ehdr.e_phentsize;
     int previous_flags = 0;
 
@@ -57,8 +58,8 @@ Elf64_Off get_default_section_offset(const ElfBinary *binary, int target_segnum)
     return 0;
 }
 
-// Pure function to calculate the default address of a section
-Elf64_Addr get_default_section_address(const ElfBinary *binary, int target_segnum) {
+static Elf64_Addr
+get_default_section_address(const ElfBinary *binary, int target_segnum) {
     Elf64_Addr current_addr = binary->ehdr.e_ehsize + binary->ehdr.e_phnum * binary->ehdr.e_phentsize;
     int previous_flags = 0;
 
@@ -98,7 +99,6 @@ Elf64_Addr get_default_section_address(const ElfBinary *binary, int target_segnu
     return 0;
 }
 
-// Updated calculate_section_offsets using the pure functions
 static void calculate_section_offsets(const ElfBinary *binary) {
     for (int segnum = 0; segnum < binary->ehdr.e_shnum; segnum++) {
         Elf64_Shdr *shdr = &binary->shdrs[segnum];
@@ -107,22 +107,27 @@ static void calculate_section_offsets(const ElfBinary *binary) {
         Elf64_Addr default_addr = get_default_section_address(binary, segnum);
 
         // Set default offset if not explicitly specified
-        if (shdr->sh_offset == (Elf64_Off)(-1) || shdr->sh_offset == default_offset) {
+        if (shdr->sh_offset == (Elf64_Off)(-1)) {
             shdr->sh_offset = default_offset;
         }
 
         // Set default address if not explicitly specified
-        if (shdr->sh_addr == (Elf64_Off)(-1) || shdr->sh_addr == default_addr) {
+        if (shdr->sh_addr == (Elf64_Off)(-1)) {
             shdr->sh_addr = default_addr;
         }
     }
 }
 
-// Updated is_default_section_offset using the pure function
 bool is_default_section_offset(const ElfBinary *binary, int target_segnum, Elf64_Off offset) {
     Elf64_Off default_offset = get_default_section_offset(binary, target_segnum);
     return offset == default_offset;
 }
+
+bool is_default_section_addr(const ElfBinary *binary, int target_segnum, Elf64_Addr addr) {
+    Elf64_Addr default_addr = get_default_section_address(binary, target_segnum);
+    return addr == default_addr;
+}
+
 
 void compute_defaults(ElfBinary *binary) {
     if (binary->ehdr.e_ehsize == 0) {
