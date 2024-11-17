@@ -99,7 +99,30 @@ get_default_section_address(const ElfBinary *binary, int target_segnum) {
     return 0;
 }
 
-static void calculate_section_offsets(const ElfBinary *binary) {
+Elf64_Off
+get_default_e_shoff(const Elf64_Shdr *shdrs, size_t shnum) {
+    if (shdrs == NULL || shnum == 0) {
+        // No sections, return 0 as no section header table is needed
+        return 0;
+    }
+
+    Elf64_Off last_section_end = 0;
+
+    // Find the end offset of the last section
+    for (size_t i = 0; i < shnum; i++) {
+        Elf64_Off section_end = shdrs[i].sh_offset + shdrs[i].sh_size;
+        if (section_end > last_section_end) {
+            last_section_end = section_end;
+        }
+    }
+
+    // Align the resulting offset to an 8-byte boundary
+    last_section_end = (last_section_end + 0x7) & ~0x7; // Align to 8 bytes
+
+    return last_section_end;
+}
+
+static void fill_section_offsets(const ElfBinary *binary) {
     for (int segnum = 0; segnum < binary->ehdr.e_shnum; segnum++) {
         Elf64_Shdr *shdr = &binary->shdrs[segnum];
 
@@ -128,7 +151,6 @@ bool is_default_section_addr(const ElfBinary *binary, int target_segnum, Elf64_A
     return addr == default_addr;
 }
 
-
 void compute_defaults(ElfBinary *binary) {
     if (binary->ehdr.e_ehsize == 0) {
         binary->ehdr.e_ehsize = sizeof(Elf64_Ehdr);
@@ -142,7 +164,10 @@ void compute_defaults(ElfBinary *binary) {
     if (binary->ehdr.e_shentsize == 0 && binary->ehdr.e_shnum > 0) {
         binary->ehdr.e_shentsize = sizeof(Elf64_Shdr);
     }
-    calculate_section_offsets(binary);
+    fill_section_offsets(binary);
+    if (binary->ehdr.e_shoff == 0 && binary->ehdr.e_shnum > 0) {
+        binary->ehdr.e_shoff = get_default_e_shoff(binary->shdrs, binary->ehdr.e_shnum);
+    }
 }
 
 bool is_default_e_phoff(const ElfBinary *binary) {
@@ -156,3 +181,8 @@ bool is_default_e_phentsize(const ElfBinary *binary) {
 bool is_default_e_shentsize(const ElfBinary *binary) {
     return binary->ehdr.e_shentsize == sizeof(Elf64_Shdr);
 }
+
+bool is_default_e_shoff(const ElfBinary *binary) {
+    return binary->ehdr.e_shoff == get_default_e_shoff(binary->shdrs, binary->ehdr.e_shnum);
+}
+
