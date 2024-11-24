@@ -13,6 +13,7 @@ bool is_default_e_phoff(const ElfBinary *binary);
 bool is_default_e_shoff(const ElfBinary *binary);
 bool is_default_e_phentsize(const ElfBinary *binary);
 bool is_default_e_shentsize(const ElfBinary *binary);
+bool is_default_e_shstrndx(const ElfBinary *binary);
 
 #endif /* ELF_DEFAULTS_H */
 

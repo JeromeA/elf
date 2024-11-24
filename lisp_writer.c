@@ -122,7 +122,7 @@ static void output_elf_header_lisp(const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "    ;(e_phnum %u)\n", ehdr->e_phnum);
     fprintf(fp, "    %s(e_shentsize %u)\n", is_default_e_shentsize(binary) ? ";" : "", ehdr->e_shentsize);
     fprintf(fp, "    ;(e_shnum %u)\n", ehdr->e_shnum);
-    fprintf(fp, "    (e_shstrndx %u)\n", ehdr->e_shstrndx);
+    fprintf(fp, "    %s(e_shstrndx %u)\n", is_default_e_shstrndx(binary) ? ";" : "", ehdr->e_shstrndx);
     fprintf(fp, "  )\n");
 }
 

@@ -31,6 +31,7 @@ paste:
 		cat $$file >> paste_code.txt; \
 		echo "" >> paste_code.txt; \
 	done
+	grep ^[^[:space:]] paste_code.txt > paste_outline.txt
 
 mat: all
 	./elf-decode elf-decode t.lisp

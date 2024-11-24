@@ -122,6 +122,16 @@ get_default_e_shoff(const Elf64_Shdr *shdrs, size_t shnum) {
     return last_section_end;
 }
 
+Elf64_Half
+get_default_e_shstrndx(const ElfBinary *binary) {
+    for (size_t i = 0; i < binary->ehdr.e_shnum; ++i) {
+        if (binary->section_data[i] != NULL && binary->section_data[i][0] == '\0' && binary->section_data[i][1] == '.') {
+            return i;
+        }
+    }
+    return 0;
+}
+
 static void fill_section_offsets(const ElfBinary *binary) {
     for (int segnum = 0; segnum < binary->ehdr.e_shnum; segnum++) {
         Elf64_Shdr *shdr = &binary->shdrs[segnum];
@@ -141,16 +151,6 @@ static void fill_section_offsets(const ElfBinary *binary) {
     }
 }
 
-bool is_default_section_offset(const ElfBinary *binary, int target_segnum, Elf64_Off offset) {
-    Elf64_Off default_offset = get_default_section_offset(binary, target_segnum);
-    return offset == default_offset;
-}
-
-bool is_default_section_addr(const ElfBinary *binary, int target_segnum, Elf64_Addr addr) {
-    Elf64_Addr default_addr = get_default_section_address(binary, target_segnum);
-    return addr == default_addr;
-}
-
 void compute_defaults(ElfBinary *binary) {
     if (binary->ehdr.e_ehsize == 0) {
         binary->ehdr.e_ehsize = sizeof(Elf64_Ehdr);
@@ -164,10 +164,25 @@ void compute_defaults(ElfBinary *binary) {
     if (binary->ehdr.e_shentsize == 0 && binary->ehdr.e_shnum > 0) {
         binary->ehdr.e_shentsize = sizeof(Elf64_Shdr);
     }
+    if (binary->ehdr.e_shstrndx == 0) {
+        binary->ehdr.e_shstrndx = get_default_e_shstrndx(binary);
+    }
+    // shstrndx must be set before calling fill_section_offsets, as it is used to identify the sections.
     fill_section_offsets(binary);
+    // The sections offsets must be filled before computing the default e_shoff.
     if (binary->ehdr.e_shoff == 0 && binary->ehdr.e_shnum > 0) {
         binary->ehdr.e_shoff = get_default_e_shoff(binary->shdrs, binary->ehdr.e_shnum);
     }
+}
+
+bool is_default_section_offset(const ElfBinary *binary, int target_segnum, Elf64_Off offset) {
+    Elf64_Off default_offset = get_default_section_offset(binary, target_segnum);
+    return offset == default_offset;
+}
+
+bool is_default_section_addr(const ElfBinary *binary, int target_segnum, Elf64_Addr addr) {
+    Elf64_Addr default_addr = get_default_section_address(binary, target_segnum);
+    return addr == default_addr;
 }
 
 bool is_default_e_phoff(const ElfBinary *binary) {
@@ -184,5 +199,9 @@ bool is_default_e_shentsize(const ElfBinary *binary) {
 
 bool is_default_e_shoff(const ElfBinary *binary) {
     return binary->ehdr.e_shoff == get_default_e_shoff(binary->shdrs, binary->ehdr.e_shnum);
+}
+
+bool is_default_e_shstrndx(const ElfBinary *binary) {
+    return binary->ehdr.e_shstrndx == get_default_e_shstrndx(binary);
 }
 
