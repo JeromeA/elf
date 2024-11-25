@@ -157,8 +157,8 @@ int fill_phdr_defaults(const ElfBinary *binary, Elf64_Phdr *phdr) {
         if (phdr->p_offset == (Elf64_Off)(-1)) phdr->p_offset = 64;
         if (phdr->p_vaddr == (Elf64_Addr)(-1)) phdr->p_vaddr = 64;
         if (phdr->p_paddr == (Elf64_Addr)(-1)) phdr->p_paddr = 64;
-        if (phdr->p_filesz == (Elf64_Xword)(-1)) phdr->p_filesz = phnum * sizeof(Elf64_Phdr);
-        if (phdr->p_memsz == (Elf64_Xword)(-1)) phdr->p_memsz = phnum * sizeof(Elf64_Phdr);
+        if (phdr->p_filesz == (Elf64_Xword)(-1)) phdr->p_filesz = binary->ehdr.e_phnum * sizeof(Elf64_Phdr);
+        if (phdr->p_memsz == (Elf64_Xword)(-1)) phdr->p_memsz = binary->ehdr.e_phnum * sizeof(Elf64_Phdr);
     } else if (phdr->p_type == PT_INTERP) {
         // Find the ".interp" section
         for (int i = 0; i < binary->ehdr.e_shnum; i++) {
