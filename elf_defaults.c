@@ -152,7 +152,7 @@ static void fill_section_offsets(const ElfBinary *binary) {
     }
 }
 
-int fill_phdr_defaults(ElfBinary *binary, Elf64_Phdr *phdr) {
+int fill_phdr_defaults(const ElfBinary *binary, Elf64_Phdr *phdr) {
     if (phdr->p_type == PT_PHDR) {
         if (phdr->p_offset == (Elf64_Off)(-1)) phdr->p_offset = 64;
         if (phdr->p_vaddr == (Elf64_Addr)(-1)) phdr->p_vaddr = 64;
