@@ -55,10 +55,10 @@ static const char *get_p_type_string(Elf64_Word p_type) {
     }
 }
 
-static void output_program_headers_lisp(const ElfBinary *binary, size_t phnum, const Elf64_Phdr *phdrs, FILE *fp) {
+static void output_program_headers_lisp(const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "  (program_headers\n");
-    for (size_t i = 0; i < phnum; i++) {
-        const Elf64_Phdr *phdr = &phdrs[i];
+    for (size_t i = 0; i < binary->ehdr.e_phnum; i++) {
+        const Elf64_Phdr *phdr = &binary->phdrs[i];
         Elf64_Phdr default_phdr = *phdr;
         default_phdr.p_offset = (Elf64_Off)(-1);
         default_phdr.p_vaddr = (Elf64_Addr)(-1);
@@ -405,7 +405,7 @@ void output_lisp_representation(const ElfBinary *binary, const char *output_file
 
     fprintf(fp, "(elf_binary\n");
     output_elf_header_lisp(binary, fp);
-    output_program_headers_lisp(binary, binary->ehdr.e_phnum, binary->phdrs, fp);
+    output_program_headers_lisp(binary, fp);
     output_section_headers_lisp(binary->ehdr.e_shnum, binary->shdrs, binary->section_data, binary, fp);
 
     fprintf(fp, ")\n");
