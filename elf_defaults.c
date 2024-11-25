@@ -152,7 +152,7 @@ static void fill_section_offsets(const ElfBinary *binary) {
     }
 }
 
-int fill_phdr_defaults(ElfBinary *binary, Elf64_Phdr *phdr, Elf64_Half phnum) {
+int fill_phdr_defaults(ElfBinary *binary, Elf64_Phdr *phdr) {
     if (phdr->p_type == PT_PHDR) {
         if (phdr->p_offset == (Elf64_Off)(-1)) phdr->p_offset = 64;
         if (phdr->p_vaddr == (Elf64_Addr)(-1)) phdr->p_vaddr = 64;
@@ -185,7 +185,7 @@ int fill_phdr_defaults(ElfBinary *binary, Elf64_Phdr *phdr, Elf64_Half phnum) {
 void compute_defaults(ElfBinary *binary) {
     for (int i = 0; i < binary->ehdr.e_phnum; i++) {
         Elf64_Phdr *phdr = &binary->phdrs[i];
-        if (fill_phdr_defaults(binary, phdr, binary->ehdr.e_phnum) != 0) {
+        if (fill_phdr_defaults(binary, phdr) != 0) {
             fprintf(stderr, "Error: Missing fields in program header of type %d\n", phdr->p_type);
             exit(EXIT_FAILURE);
         }
