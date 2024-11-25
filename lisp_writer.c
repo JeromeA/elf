@@ -59,13 +59,11 @@ static void output_program_headers_lisp(size_t phnum, const Elf64_Phdr *phdrs, F
     fprintf(fp, "  (program_headers\n");
     for (size_t i = 0; i < phnum; i++) {
         const Elf64_Phdr *phdr = &phdrs[i];
+        Elf64_Phdr default_phdr = *phdr;
+        (void)fill_phdr_defaults(&default_phdr, phnum);
         fprintf(fp, "    (program_header\n");
         fprintf(fp, "      (p_type %s)\n", get_p_type_string(phdr->p_type));
         fprintf(fp, "      (p_flags %s)\n", get_p_flags_string(phdr->p_flags));
-        Elf64_Phdr default_phdr = *phdr;
-        // Ignore the return value as errors are handled elsewhere
-        (void)fill_phdr_defaults(&default_phdr, phnum);
-
         fprintf(fp, "      %s(p_offset %lu)\n", phdr->p_offset == default_phdr.p_offset ? ";" : "", phdr->p_offset);
         fprintf(fp, "      %s(p_vaddr 0x%lx)\n", phdr->p_vaddr == default_phdr.p_vaddr ? ";" : "", phdr->p_vaddr);
         fprintf(fp, "      %s(p_paddr 0x%lx)\n", phdr->p_paddr == default_phdr.p_paddr ? ";" : "", phdr->p_paddr);
