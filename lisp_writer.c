@@ -62,11 +62,14 @@ static void output_program_headers_lisp(size_t phnum, const Elf64_Phdr *phdrs, F
         fprintf(fp, "    (program_header\n");
         fprintf(fp, "      (p_type %s)\n", get_p_type_string(phdr->p_type));
         fprintf(fp, "      (p_flags %s)\n", get_p_flags_string(phdr->p_flags));
-        fprintf(fp, "      (p_offset %lu)\n", phdr->p_offset);
-        fprintf(fp, "      (p_vaddr 0x%lx)\n", phdr->p_vaddr);
-        fprintf(fp, "      (p_paddr 0x%lx)\n", phdr->p_paddr);
-        fprintf(fp, "      (p_filesz %lu)\n", phdr->p_filesz);
-        fprintf(fp, "      (p_memsz %lu)\n", phdr->p_memsz);
+        Elf64_Phdr default_phdr = *phdr;
+        fill_phdr_defaults(&default_phdr, phnum);
+
+        fprintf(fp, "      %s(p_offset %lu)\n", phdr->p_offset == default_phdr.p_offset ? ";" : "", phdr->p_offset);
+        fprintf(fp, "      %s(p_vaddr 0x%lx)\n", phdr->p_vaddr == default_phdr.p_vaddr ? ";" : "", phdr->p_vaddr);
+        fprintf(fp, "      %s(p_paddr 0x%lx)\n", phdr->p_paddr == default_phdr.p_paddr ? ";" : "", phdr->p_paddr);
+        fprintf(fp, "      %s(p_filesz %lu)\n", phdr->p_filesz == default_phdr.p_filesz ? ";" : "", phdr->p_filesz);
+        fprintf(fp, "      %s(p_memsz %lu)\n", phdr->p_memsz == default_phdr.p_memsz ? ";" : "", phdr->p_memsz);
         fprintf(fp, "      (p_align %lu)\n", phdr->p_align);
         fprintf(fp, "    )\n");
     }

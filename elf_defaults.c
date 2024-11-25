@@ -152,23 +152,25 @@ static void fill_section_offsets(const ElfBinary *binary) {
     }
 }
 
-void compute_defaults(ElfBinary *binary) {
+static void fill_phdr_defaults(Elf64_Phdr *phdr, Elf64_Half phnum) {
+    if (phdr->p_type == PT_PHDR) {
+        if (phdr->p_offset == (Elf64_Off)(-1)) phdr->p_offset = 64;
+        if (phdr->p_vaddr == (Elf64_Addr)(-1)) phdr->p_vaddr = 64;
+        if (phdr->p_paddr == (Elf64_Addr)(-1)) phdr->p_paddr = 64;
+        if (phdr->p_filesz == (Elf64_Xword)(-1)) phdr->p_filesz = phnum * sizeof(Elf64_Phdr);
+        if (phdr->p_memsz == (Elf64_Xword)(-1)) phdr->p_memsz = phnum * sizeof(Elf64_Phdr);
+    } else {
+        if (phdr->p_offset == (Elf64_Off)(-1) || phdr->p_vaddr == (Elf64_Addr)(-1) ||
+            phdr->p_paddr == (Elf64_Addr)(-1) || phdr->p_filesz == (Elf64_Xword)(-1) ||
+            phdr->p_memsz == (Elf64_Xword)(-1)) {
+            fprintf(stderr, "Error: Missing fields in program header of type %d\n", phdr->p_type);
+            exit(EXIT_FAILURE);
+        }
+    }
+}
     for (int i = 0; i < binary->ehdr.e_phnum; i++) {
         Elf64_Phdr *phdr = &binary->phdrs[i];
-        if (phdr->p_type == PT_PHDR) {
-            if (phdr->p_offset == (Elf64_Off)(-1)) phdr->p_offset = 64;
-            if (phdr->p_vaddr == (Elf64_Addr)(-1)) phdr->p_vaddr = 64;
-            if (phdr->p_paddr == (Elf64_Addr)(-1)) phdr->p_paddr = 64;
-            if (phdr->p_filesz == (Elf64_Xword)(-1)) phdr->p_filesz = binary->ehdr.e_phnum * sizeof(Elf64_Phdr);
-            if (phdr->p_memsz == (Elf64_Xword)(-1)) phdr->p_memsz = binary->ehdr.e_phnum * sizeof(Elf64_Phdr);
-        } else {
-            if (phdr->p_offset == (Elf64_Off)(-1) || phdr->p_vaddr == (Elf64_Addr)(-1) ||
-                phdr->p_paddr == (Elf64_Addr)(-1) || phdr->p_filesz == (Elf64_Xword)(-1) ||
-                phdr->p_memsz == (Elf64_Xword)(-1)) {
-                fprintf(stderr, "Error: Missing fields in program header of type %d\n", phdr->p_type);
-                exit(EXIT_FAILURE);
-            }
-        }
+        fill_phdr_defaults(phdr, binary->ehdr.e_phnum);
     }
     if (binary->ehdr.e_ehsize == 0) {
         binary->ehdr.e_ehsize = sizeof(Elf64_Ehdr);
