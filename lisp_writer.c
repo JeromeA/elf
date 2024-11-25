@@ -65,7 +65,7 @@ static void output_program_headers_lisp(size_t phnum, const Elf64_Phdr *phdrs, F
         default_phdr.p_paddr = (Elf64_Addr)(-1);
         default_phdr.p_filesz = (Elf64_Xword)(-1);
         default_phdr.p_memsz = (Elf64_Xword)(-1);
-        fill_phdr_defaults(&default_phdr, phnum);
+        fill_phdr_defaults(binary, &default_phdr, phnum);
         fprintf(fp, "    (program_header\n");
         fprintf(fp, "      (p_type %s)\n", get_p_type_string(phdr->p_type));
         fprintf(fp, "      (p_flags %s)\n", get_p_flags_string(phdr->p_flags));
