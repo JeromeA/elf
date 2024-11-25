@@ -1,6 +1,7 @@
 #include "elf_defaults.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static bool is_file_only_section(const ElfBinary *binary, const Elf64_Shdr *shdr) {
     if (shdr->sh_type == SHT_NULL) return true;
