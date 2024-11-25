@@ -237,7 +237,7 @@ static void parse_program_headers(FILE *fp, ElfBinary *binary) {
                 binary->phdrs = xrealloc(binary->phdrs, sizeof(Elf64_Phdr) * phdr_capacity);
             }
             Elf64_Phdr *current_phdr = &binary->phdrs[phdr_count];
-            memset(current_phdr, 0, sizeof(Elf64_Phdr));
+            memset(current_phdr, -1, sizeof(Elf64_Phdr));
 
             parse_program_header(fp, current_phdr);
             phdr_count++;
