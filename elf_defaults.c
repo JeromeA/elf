@@ -14,7 +14,6 @@ static bool is_file_only_section(const ElfBinary *binary, const Elf64_Shdr *shdr
         return true;
     }
     return false;
-    return 0; // Success
 }
 
 static Elf64_Off
@@ -167,6 +166,7 @@ int fill_phdr_defaults(Elf64_Phdr *phdr, Elf64_Half phnum) {
             return -1; // Indicate error
         }
     }
+    return 0; // Success
 }
 
 void compute_defaults(ElfBinary *binary) {
