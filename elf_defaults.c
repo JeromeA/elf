@@ -183,13 +183,6 @@ int fill_phdr_defaults(const ElfBinary *binary, Elf64_Phdr *phdr) {
 }
 
 void compute_defaults(ElfBinary *binary) {
-    for (int i = 0; i < binary->ehdr.e_phnum; i++) {
-        Elf64_Phdr *phdr = &binary->phdrs[i];
-        if (fill_phdr_defaults(binary, phdr) != 0) {
-            fprintf(stderr, "Error: Missing fields in program header of type %d\n", phdr->p_type);
-            exit(EXIT_FAILURE);
-        }
-    }
     if (binary->ehdr.e_ehsize == 0) {
         binary->ehdr.e_ehsize = sizeof(Elf64_Ehdr);
     }
@@ -210,6 +203,14 @@ void compute_defaults(ElfBinary *binary) {
     // The sections offsets must be filled before computing the default e_shoff.
     if (binary->ehdr.e_shoff == 0 && binary->ehdr.e_shnum > 0) {
         binary->ehdr.e_shoff = get_default_e_shoff(binary->shdrs, binary->ehdr.e_shnum);
+    }
+    // The sections offsets must be filled before computing the default phdr values.
+    for (int i = 0; i < binary->ehdr.e_phnum; i++) {
+        Elf64_Phdr *phdr = &binary->phdrs[i];
+        if (fill_phdr_defaults(binary, phdr) != 0) {
+            fprintf(stderr, "Error: Missing fields in program header of type %d\n", phdr->p_type);
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
