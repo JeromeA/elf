@@ -153,12 +153,18 @@ static void fill_section_offsets(const ElfBinary *binary) {
 }
 
 int fill_phdr_defaults(const ElfBinary *binary, Elf64_Phdr *phdr) {
+    if (phdr->p_offset != (Elf64_Off)(-1) && phdr->p_vaddr != (Elf64_Addr)(-1) &&
+            phdr->p_paddr != (Elf64_Addr)(-1) && phdr->p_filesz != (Elf64_Xword)(-1) &&
+            phdr->p_memsz != (Elf64_Xword)(-1)) {
+        return 0;
+    }
     if (phdr->p_type == PT_PHDR) {
         if (phdr->p_offset == (Elf64_Off)(-1)) phdr->p_offset = 64;
         if (phdr->p_vaddr == (Elf64_Addr)(-1)) phdr->p_vaddr = 64;
         if (phdr->p_paddr == (Elf64_Addr)(-1)) phdr->p_paddr = 64;
         if (phdr->p_filesz == (Elf64_Xword)(-1)) phdr->p_filesz = binary->ehdr.e_phnum * sizeof(Elf64_Phdr);
         if (phdr->p_memsz == (Elf64_Xword)(-1)) phdr->p_memsz = binary->ehdr.e_phnum * sizeof(Elf64_Phdr);
+        return 0;
     } else if (phdr->p_type == PT_INTERP) {
         // Find the ".interp" section
         for (int i = 0; i < binary->ehdr.e_shnum; i++) {
@@ -169,17 +175,11 @@ int fill_phdr_defaults(const ElfBinary *binary, Elf64_Phdr *phdr) {
                 if (phdr->p_paddr == (Elf64_Addr)(-1)) phdr->p_paddr = shdr->sh_addr;
                 if (phdr->p_filesz == (Elf64_Xword)(-1)) phdr->p_filesz = shdr->sh_size;
                 if (phdr->p_memsz == (Elf64_Xword)(-1)) phdr->p_memsz = shdr->sh_size;
-                break;
+                return 0;
             }
         }
-    } else {
-        if (phdr->p_offset == (Elf64_Off)(-1) || phdr->p_vaddr == (Elf64_Addr)(-1) ||
-            phdr->p_paddr == (Elf64_Addr)(-1) || phdr->p_filesz == (Elf64_Xword)(-1) ||
-            phdr->p_memsz == (Elf64_Xword)(-1)) {
-            return -1; // Indicate error
-        }
     }
-    return 0; // Success
+    return -1;
 }
 
 void compute_defaults(ElfBinary *binary) {

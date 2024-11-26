@@ -15,7 +15,7 @@ bool is_default_e_phentsize(const ElfBinary *binary);
 bool is_default_e_shentsize(const ElfBinary *binary);
 bool is_default_e_shstrndx(const ElfBinary *binary);
 
-int fill_phdr_defaults(ElfBinary *binary, Elf64_Phdr *phdr);
+int fill_phdr_defaults(const ElfBinary *binary, Elf64_Phdr *phdr);
 
 #endif /* ELF_DEFAULTS_H */
 
