@@ -718,10 +718,6 @@ static void parse_section_header(FILE *fp, ElfBinary *binary, int shdr_index) {
             current_shdr->sh_offset = strtoul(field_value, NULL, 0);
         } else if (strcmp(field_name, "sh_size") == 0) {
             current_shdr->sh_size = strtoul(field_value, NULL, 0);
-        } else if (strcmp(field_name, "sh_link") == 0) {
-            current_shdr->sh_link = (Elf64_Word)strtoul(field_value, NULL, 0);
-        } else if (strcmp(field_name, "sh_info") == 0) {
-            current_shdr->sh_info = (Elf64_Word)strtoul(field_value, NULL, 0);
         } else if (strcmp(field_name, "sh_addralign") == 0) {
             current_shdr->sh_addralign = strtoul(field_value, NULL, 0);
         } else if (strcmp(field_name, "sh_entsize") == 0) {
