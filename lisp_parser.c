@@ -636,6 +636,57 @@ static unsigned char* parse_relocation(FILE *fp, size_t *out_size) {
     }
 }
 
+
+static unsigned char* parse_plt_entry(FILE *fp, size_t *out_size) {
+    unsigned char *data = NULL;
+    size_t data_size = 0;
+    char *input = NULL;
+    char *line = NULL;
+    size_t len = 0;
+
+    // Read lines until we find a lone ")"
+    while (get_line(fp, &input, &line, &len)) {
+        // Expect a line of the form:
+        // (instruction "some asm text" 0xSOMEHEX)
+        // We'll parse out the hex machine code.
+        char asm_str[512];
+        char hex_str[512];
+        // The format tries to read: 
+        // (instruction "ANYTHING until next quote" 0xHEX)
+        // %[^"] reads until the next quote for the asm_str.
+        // %[0-9A-Fa-f] reads the hex digits after '0x'.
+        if (sscanf(line, " (instruction \"%[^\"]\" 0x%[0-9A-Fa-f])", asm_str, hex_str) == 2) {
+            // Decode the hex_str
+            size_t hex_len = strlen(hex_str);
+            if (hex_len % 2 != 0) {
+                fprintf(stderr, "Error: Instruction hex string length must be even: %s\n", hex_str);
+                exit(EXIT_FAILURE);
+            }
+
+            size_t instr_size = hex_len / 2;
+            unsigned char *instr_data = xmalloc(instr_size);
+            for (size_t i = 0; i < instr_size; i++) {
+                char byte_str[3] = { hex_str[i*2], hex_str[i*2+1], '\0' };
+                instr_data[i] = (unsigned char)strtoul(byte_str, NULL, 16);
+            }
+
+            // Append this instruction's bytes to the data buffer
+            data = xrealloc(data, data_size + instr_size);
+            memcpy(data + data_size, instr_data, instr_size);
+            data_size += instr_size;
+            free(instr_data);
+        } else {
+            fprintf(stderr, "Error: Invalid instruction format in plt_entry: %s\n", line);
+            exit(EXIT_FAILURE);
+        }
+
+    }
+
+    free(input);
+    *out_size = data_size;
+    return data;
+}
+
 static unsigned char* parse_data(FILE *fp, size_t *out_size) {
     unsigned char *data = NULL;
     size_t data_size = 0;
@@ -661,6 +712,8 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
             block = parse_relocation(fp, &block_size);
         } else if (strcmp(attr_name, "symbol") == 0) {
             block = parse_symbol(fp, &block_size);
+        } else if (strcmp(attr_name, "plt_entry") == 0) {
+            block = parse_plt_entry(fp, &block_size);
         } else {
             fprintf(stderr, "Error: Unknown attribute '%s' in sh_data\n", attr_name);
             exit(EXIT_FAILURE);

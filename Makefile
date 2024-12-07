@@ -1,5 +1,6 @@
 
 CFLAGS = -Wall -Wextra -pedantic -g3
+LDFLAGS = -lcapstone
 
 TARGETS = elf-decode elf-encode
 
@@ -16,7 +17,7 @@ HEADERS := $(wildcard *.h)
 all: $(TARGETS)
 
 elf-decode: $(ELF_DECODE_OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 elf-encode: $(ELF_ENCODE_OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^

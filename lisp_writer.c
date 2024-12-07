@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <capstone/capstone.h>
 
 static const char *get_p_flags_string(Elf64_Word p_flags) {
     static char flags_str[32];
@@ -337,10 +338,53 @@ static void output_relocations_lisp(const Elf64_Shdr *shdr, const unsigned char 
     }
 }
 
+static void output_plt_entries_lisp(const unsigned char *data, size_t size, FILE *fp) {
+    const size_t plt_entry_size = 16; // Each PLT entry is 16 bytes
+    size_t entry_count = size / plt_entry_size;
+
+    csh handle;
+    cs_insn *insn;
+
+    // Initialize Capstone disassembler for AMD64
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK) {
+        fprintf(stderr, "Error: Unable to initialize Capstone disassembler\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < entry_count; i++) {
+        const unsigned char *entry = &data[i * plt_entry_size];
+
+        // Disassemble this PLT entry
+        size_t count = cs_disasm(handle, entry, plt_entry_size, 0, 0, &insn);
+        if (count > 0) {
+            fprintf(fp, "        (plt_entry\n");
+            for (size_t j = 0; j < count; j++) {
+                fprintf(fp, "          (instruction \"%s %s\" 0x",
+                        insn[j].mnemonic, insn[j].op_str);
+                for (size_t k = 0; k < insn[j].size; k++) {
+                    fprintf(fp, "%02X", insn[j].bytes[k]);
+                }
+                fprintf(fp, ")\n");
+            }
+            fprintf(fp, "        )\n");
+            cs_free(insn, count);
+        } else {
+            fprintf(stderr, "Error: Failed to disassemble PLT entry at index %zu\n", i);
+        }
+    }
+
+    cs_close(&handle);
+}
+
+
 static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const ElfBinary *binary, FILE *fp) {
     size_t size = shdr->sh_size;
+    const char *section_name = get_section_name(binary, shdr);
+
     fprintf(fp, "      (data\n");
-    if (shdr->sh_type == SHT_NOTE) {
+    if (strncmp(section_name, ".plt", 4) == 0) {
+        output_plt_entries_lisp(data, size, fp);
+    } else if (shdr->sh_type == SHT_NOTE) {
         output_notes_lisp(shdr, data, fp);
     } else if (shdr->sh_type == SHT_SYMTAB) {
         output_symbols_lisp(binary, shdr, data, fp);
