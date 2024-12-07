@@ -386,7 +386,7 @@ static void output_section_headers_lisp(size_t shnum, const Elf64_Shdr *shdrs, u
         fprintf(fp, "      %s(sh_link %u)\n", shdr->sh_link == 0 ? ";" : "", shdr->sh_link);
         fprintf(fp, "      %s(sh_info %u)\n", shdr->sh_info == 0 ? ";" : "", shdr->sh_info);
         fprintf(fp, "      (sh_addralign %lu)\n", shdr->sh_addralign);
-        fprintf(fp, "      (sh_entsize %lu)\n", shdr->sh_entsize);
+        fprintf(fp, "      %s(sh_entsize %lu)\n", shdr->sh_entsize == 0 ? ";" : "", shdr->sh_entsize);
         
         if (shdr->sh_type != SHT_NOBITS && shdr->sh_size > 0 && section_data[i]) {
           output_data(shdr, section_data[i], binary, fp);
