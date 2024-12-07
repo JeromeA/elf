@@ -56,6 +56,74 @@ static const char *get_p_type_string(Elf64_Word p_type) {
     }
 }
 
+static const char *get_d_tag_string(Elf64_Sxword d_tag) {
+    switch (d_tag) {
+        case DT_NULL: return "DT_NULL";
+        case DT_NEEDED: return "DT_NEEDED";
+        case DT_PLTRELSZ: return "DT_PLTRELSZ";
+        case DT_PLTGOT: return "DT_PLTGOT";
+        case DT_HASH: return "DT_HASH";
+        case DT_STRTAB: return "DT_STRTAB";
+        case DT_SYMTAB: return "DT_SYMTAB";
+        case DT_RELA: return "DT_RELA";
+        case DT_RELASZ: return "DT_RELASZ";
+        case DT_RELAENT: return "DT_RELAENT";
+        case DT_STRSZ: return "DT_STRSZ";
+        case DT_SYMENT: return "DT_SYMENT";
+        case DT_INIT: return "DT_INIT";
+        case DT_FINI: return "DT_FINI";
+        case DT_SONAME: return "DT_SONAME";
+        case DT_RPATH: return "DT_RPATH";
+        case DT_SYMBOLIC: return "DT_SYMBOLIC";
+        case DT_REL: return "DT_REL";
+        case DT_RELSZ: return "DT_RELSZ";
+        case DT_RELENT: return "DT_RELENT";
+        case DT_PLTREL: return "DT_PLTREL";
+        case DT_DEBUG: return "DT_DEBUG";
+        case DT_TEXTREL: return "DT_TEXTREL";
+        case DT_JMPREL: return "DT_JMPREL";
+        case DT_BIND_NOW: return "DT_BIND_NOW";
+        case DT_INIT_ARRAY: return "DT_INIT_ARRAY";
+        case DT_FINI_ARRAY: return "DT_FINI_ARRAY";
+        case DT_INIT_ARRAYSZ: return "DT_INIT_ARRAYSZ";
+        case DT_FINI_ARRAYSZ: return "DT_FINI_ARRAYSZ";
+        case DT_RUNPATH: return "DT_RUNPATH";
+        case DT_FLAGS: return "DT_FLAGS";
+        case DT_PREINIT_ARRAY: return "DT_PREINIT_ARRAY";
+        case DT_PREINIT_ARRAYSZ: return "DT_PREINIT_ARRAYSZ";
+        case DT_GNU_HASH: return "DT_GNU_HASH";
+        case DT_VERNEED: return "DT_VERNEED";
+        case DT_VERNEEDNUM: return "DT_VERNEEDNUM";
+        case DT_VERSYM: return "DT_VERSYM";
+        case DT_RELACOUNT: return "DT_RELACOUNT";
+        case DT_RELCOUNT: return "DT_RELCOUNT";
+        case DT_FLAGS_1: return "DT_FLAGS_1";
+        case DT_VERDEF: return "DT_VERDEF";
+        case DT_VERDEFNUM: return "DT_VERDEFNUM";
+        // Add other known tags as needed
+        default: {
+            static char unknown_str[64];
+            snprintf(unknown_str, sizeof(unknown_str), "DT_UNKNOWN(%ld)", d_tag);
+            return unknown_str;
+        }
+    }
+}
+
+static void output_dynamic_lisp(const ElfBinary *binary, const Elf64_Shdr *shdr, const unsigned char *data, FILE *fp) {
+    size_t entry_count = shdr->sh_size / shdr->sh_entsize;
+    const Elf64_Dyn *dyn_entries = (const Elf64_Dyn *)data;
+
+    for (size_t i = 0; i < entry_count; i++) {
+        const Elf64_Dyn *dyn = &dyn_entries[i];
+        fprintf(fp, "        (dynamic_entry\n");
+        fprintf(fp, "          (d_tag %s)\n", get_d_tag_string(dyn->d_tag));
+        // Many tags expect pointers (e.g., DT_STRTAB, DT_SYMTAB),
+        // others are values (e.g., DT_STRSZ, DT_SYMENT).
+        fprintf(fp, "          (d_val 0x%lx) ; also interpreted as %lu\n", (unsigned long)dyn->d_un.d_val, (unsigned long)dyn->d_un.d_val);
+        fprintf(fp, "        )\n");
+    }
+}
+
 static void output_program_headers_lisp(const ElfBinary *binary, FILE *fp) {
     fprintf(fp, "  (program_headers\n");
     for (size_t i = 0; i < binary->ehdr.e_phnum; i++) {
@@ -421,6 +489,8 @@ static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const
         output_symbols_lisp(binary, shdr, data, fp);
     } else if (shdr->sh_type == SHT_REL || shdr->sh_type == SHT_RELA) {
         output_relocations_lisp(shdr, data, shdr->sh_type == SHT_RELA, fp);
+    } else if (shdr->sh_type == SHT_DYNAMIC) {
+        output_dynamic_lisp(binary, shdr, data, fp);
     } else if (is_string_table(data, size)) {
         size_t pos = 0;
         while (pos < size) {

@@ -43,6 +43,56 @@ static Elf64_Half get_e_machine_value(const char *str) {
     exit(EXIT_FAILURE);
 }
 
+
+static Elf64_Sxword get_d_tag_value(const char *str) {
+    if (strcmp(str, "DT_NEEDED") == 0) return DT_NEEDED;
+    if (strcmp(str, "DT_NULL") == 0) return DT_NULL;
+    if (strcmp(str, "DT_NEEDED") == 0) return DT_NEEDED;
+    if (strcmp(str, "DT_PLTRELSZ") == 0) return DT_PLTRELSZ;
+    if (strcmp(str, "DT_PLTGOT") == 0) return DT_PLTGOT;
+    if (strcmp(str, "DT_HASH") == 0) return DT_HASH;
+    if (strcmp(str, "DT_STRTAB") == 0) return DT_STRTAB;
+    if (strcmp(str, "DT_SYMTAB") == 0) return DT_SYMTAB;
+    if (strcmp(str, "DT_RELA") == 0) return DT_RELA;
+    if (strcmp(str, "DT_RELASZ") == 0) return DT_RELASZ;
+    if (strcmp(str, "DT_RELAENT") == 0) return DT_RELAENT;
+    if (strcmp(str, "DT_STRSZ") == 0) return DT_STRSZ;
+    if (strcmp(str, "DT_SYMENT") == 0) return DT_SYMENT;
+    if (strcmp(str, "DT_INIT") == 0) return DT_INIT;
+    if (strcmp(str, "DT_FINI") == 0) return DT_FINI;
+    if (strcmp(str, "DT_SONAME") == 0) return DT_SONAME;
+    if (strcmp(str, "DT_RPATH") == 0) return DT_RPATH;
+    if (strcmp(str, "DT_SYMBOLIC") == 0) return DT_SYMBOLIC;
+    if (strcmp(str, "DT_REL") == 0) return DT_REL;
+    if (strcmp(str, "DT_RELSZ") == 0) return DT_RELSZ;
+    if (strcmp(str, "DT_RELENT") == 0) return DT_RELENT;
+    if (strcmp(str, "DT_PLTREL") == 0) return DT_PLTREL;
+    if (strcmp(str, "DT_DEBUG") == 0) return DT_DEBUG;
+    if (strcmp(str, "DT_TEXTREL") == 0) return DT_TEXTREL;
+    if (strcmp(str, "DT_JMPREL") == 0) return DT_JMPREL;
+    if (strcmp(str, "DT_BIND_NOW") == 0) return DT_BIND_NOW;
+    if (strcmp(str, "DT_INIT_ARRAY") == 0) return DT_INIT_ARRAY;
+    if (strcmp(str, "DT_FINI_ARRAY") == 0) return DT_FINI_ARRAY;
+    if (strcmp(str, "DT_INIT_ARRAYSZ") == 0) return DT_INIT_ARRAYSZ;
+    if (strcmp(str, "DT_FINI_ARRAYSZ") == 0) return DT_FINI_ARRAYSZ;
+    if (strcmp(str, "DT_RUNPATH") == 0) return DT_RUNPATH;
+    if (strcmp(str, "DT_FLAGS") == 0) return DT_FLAGS;
+    if (strcmp(str, "DT_PREINIT_ARRAY") == 0) return DT_PREINIT_ARRAY;
+    if (strcmp(str, "DT_PREINIT_ARRAYSZ") == 0) return DT_PREINIT_ARRAYSZ;
+    if (strcmp(str, "DT_GNU_HASH") == 0) return DT_GNU_HASH;
+    if (strcmp(str, "DT_VERNEED") == 0) return DT_VERNEED;
+    if (strcmp(str, "DT_VERNEEDNUM") == 0) return DT_VERNEEDNUM;
+    if (strcmp(str, "DT_VERSYM") == 0) return DT_VERSYM;
+    if (strcmp(str, "DT_RELACOUNT") == 0) return DT_RELACOUNT;
+    if (strcmp(str, "DT_RELCOUNT") == 0) return DT_RELCOUNT;
+    if (strcmp(str, "DT_FLAGS_1") == 0) return DT_FLAGS_1;
+    if (strcmp(str, "DT_VERDEF") == 0) return DT_VERDEF;
+    if (strcmp(str, "DT_VERDEFNUM") == 0) return DT_VERDEFNUM;
+    // If unknown and starts with DT_, handle as error or attempt numeric parsing:
+    fprintf(stderr, "Unknown d_tag: %s\n", str);
+    exit(EXIT_FAILURE);
+}
+
 /*
  * Helper function to read, trim a line, and determine if parsing should continue.
  * Empty lines and comments are skipped.
@@ -688,7 +738,6 @@ static unsigned char* parse_plt_entry(FILE *fp, size_t *out_size) {
     while (get_line(fp, &input, &line, &len)) {
         size_t instr_size = 0;
         unsigned char *instr_data = parse_instruction(line, &instr_size);
-
         // Append this instruction's bytes to the data buffer
         data = xrealloc(data, data_size + instr_size);
         memcpy(data + data_size, instr_data, instr_size);
@@ -698,6 +747,52 @@ static unsigned char* parse_plt_entry(FILE *fp, size_t *out_size) {
 
     free(input);
     *out_size = data_size;
+    return data;
+}
+
+static unsigned char* parse_dynamic_entry(FILE *fp, size_t *out_size) {
+    Elf64_Dyn dyn;
+    memset(&dyn, 0, sizeof(Elf64_Dyn));
+
+    char *input = NULL;
+    char *line = NULL;
+    size_t len = 0;
+
+    bool d_tag_found = false;
+    bool d_val_found = false;
+
+    // Read lines until we hit a line that returns false from get_line() (i.e. ")").
+    while (get_line(fp, &input, &line, &len)) {
+        char *field_name = NULL;
+        char *field_value = NULL;
+        parse_field(line, &field_name, &field_value);
+
+        if (strcmp(field_name, "d_tag") == 0) {
+            dyn.d_tag = get_d_tag_value(field_value);
+            d_tag_found = true;
+        } else if (strcmp(field_name, "d_val") == 0) {
+            // Interpret d_val as a number (hex or decimal)
+            dyn.d_un.d_val = strtoull(field_value, NULL, 0);
+            d_val_found = true;
+        } else {
+            fprintf(stderr, "Unknown dynamic_entry field '%s'\n", field_name);
+            exit(EXIT_FAILURE);
+        }
+
+        free(field_name);
+        free(field_value);
+    }
+
+    free(input);
+
+    if (!d_tag_found || !d_val_found) {
+        fprintf(stderr, "Error: dynamic_entry missing d_tag or d_val fields\n");
+        exit(EXIT_FAILURE);
+    }
+
+    unsigned char *data = xmalloc(sizeof(Elf64_Dyn));
+    memcpy(data, &dyn, sizeof(Elf64_Dyn));
+    *out_size = sizeof(Elf64_Dyn);
     return data;
 }
 
@@ -730,6 +825,8 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
             block = parse_plt_entry(fp, &block_size);
         } else if (strcmp(attr_name, "instruction") == 0) {
             block = parse_instruction(line, &block_size);
+        } else if (strcmp(attr_name, "dynamic_entry") == 0) {
+            block = parse_dynamic_entry(fp, &block_size);
         } else {
             fprintf(stderr, "Error: Unknown attribute '%s' in sh_data\n", attr_name);
             exit(EXIT_FAILURE);
