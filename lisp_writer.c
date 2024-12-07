@@ -338,6 +338,40 @@ static void output_relocations_lisp(const Elf64_Shdr *shdr, const unsigned char 
     }
 }
 
+static void output_instruction_lisp(FILE *fp, const cs_insn *insn) {
+    fprintf(fp, "          (instruction \"%s %s\" 0x", insn->mnemonic, insn->op_str);
+    for (size_t k = 0; k < insn->size; k++) {
+        fprintf(fp, "%02X", insn->bytes[k]);
+    }
+    fprintf(fp, ")\n");
+}
+
+
+static void output_instructions_lisp(const unsigned char *data, size_t size, FILE *fp) {
+    csh handle;
+    cs_insn *insn;
+    size_t count;
+
+    // Initialize Capstone disassembler for AMD64
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK) {
+        fprintf(stderr, "Error: Unable to initialize Capstone disassembler\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Disassemble the entire data buffer
+    count = cs_disasm(handle, data, size, 0, 0, &insn);
+    if (count > 0) {
+        for (size_t i = 0; i < count; i++) {
+            output_instruction_lisp(fp, &insn[i]);
+        }
+        cs_free(insn, count);
+    } else {
+        fprintf(fp, "        ; No instructions found or failed to disassemble\n");
+    }
+
+    cs_close(&handle);
+}
+
 static void output_plt_entries_lisp(const unsigned char *data, size_t size, FILE *fp) {
     const size_t plt_entry_size = 16; // Each PLT entry is 16 bytes
     size_t entry_count = size / plt_entry_size;
@@ -359,12 +393,7 @@ static void output_plt_entries_lisp(const unsigned char *data, size_t size, FILE
         if (count > 0) {
             fprintf(fp, "        (plt_entry\n");
             for (size_t j = 0; j < count; j++) {
-                fprintf(fp, "          (instruction \"%s %s\" 0x",
-                        insn[j].mnemonic, insn[j].op_str);
-                for (size_t k = 0; k < insn[j].size; k++) {
-                    fprintf(fp, "%02X", insn[j].bytes[k]);
-                }
-                fprintf(fp, ")\n");
+                output_instruction_lisp(fp, &insn[j]);
             }
             fprintf(fp, "        )\n");
             cs_free(insn, count);
@@ -384,6 +413,8 @@ static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const
     fprintf(fp, "      (data\n");
     if (strncmp(section_name, ".plt", 4) == 0) {
         output_plt_entries_lisp(data, size, fp);
+    } else if (strcmp(section_name, ".text") == 0) {
+        output_instructions_lisp(data, size, fp);
     } else if (shdr->sh_type == SHT_NOTE) {
         output_notes_lisp(shdr, data, fp);
     } else if (shdr->sh_type == SHT_SYMTAB) {

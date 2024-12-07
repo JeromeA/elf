@@ -729,7 +729,7 @@ static unsigned char* parse_data(FILE *fp, size_t *out_size) {
         } else if (strcmp(attr_name, "plt_entry") == 0) {
             block = parse_plt_entry(fp, &block_size);
         } else if (strcmp(attr_name, "instruction") == 0) {
-            block = parse_instruction(attr_value, &block_size);
+            block = parse_instruction(line, &block_size);
         } else {
             fprintf(stderr, "Error: Unknown attribute '%s' in sh_data\n", attr_name);
             exit(EXIT_FAILURE);
