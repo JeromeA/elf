@@ -47,6 +47,7 @@ static Elf64_Half get_e_machine_value(const char *str) {
  * Helper function to read, trim a line, and determine if parsing should continue.
  * Empty lines and comments are skipped.
  * Return true if line/len is returning a useful line, false if there is nothing to read anymore.
+ * In any case, the input buffer must be freed by the caller.
  */
 static bool get_line(FILE *fp, char **input, char **line, size_t *len) {
     while (true) {
@@ -619,6 +620,7 @@ static unsigned char* parse_relocation(FILE *fp, size_t *out_size) {
         free(field_name);
         free(field_value);
     }
+    free(input);
     Elf64_Xword info = ELF64_R_INFO(symbol_index, relocation_type);
     if (is_rela) {
         Elf64_Rela *rela = xmalloc(sizeof(Elf64_Rela));
