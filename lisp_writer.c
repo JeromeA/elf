@@ -485,7 +485,7 @@ static void output_data(const Elf64_Shdr *shdr, const unsigned char *data, const
         output_instructions_lisp(data, size, fp);
     } else if (shdr->sh_type == SHT_NOTE) {
         output_notes_lisp(shdr, data, fp);
-    } else if (shdr->sh_type == SHT_SYMTAB) {
+    } else if (shdr->sh_type == SHT_SYMTAB || shdr->sh_type == SHT_DYNSYM) {
         output_symbols_lisp(binary, shdr, data, fp);
     } else if (shdr->sh_type == SHT_REL || shdr->sh_type == SHT_RELA) {
         output_relocations_lisp(shdr, data, shdr->sh_type == SHT_RELA, fp);
